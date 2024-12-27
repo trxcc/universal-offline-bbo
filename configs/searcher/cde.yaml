@@ -1,0 +1,9 @@
+# not supported now, since pypop7 does not support batch evaluation
+
+
+_target_: src.searcher.cde.CDESearcher
+num_solutions: 128
+options: 
+  max_function_evaluations: 10000
+
+MAXIMIZE: false 

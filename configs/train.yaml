@@ -12,6 +12,8 @@ defaults:
   - paths: default
   - extras: default
   - hydra: default
+  - task: design_bench
+  - searcher: pso
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule

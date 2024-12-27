@@ -1,0 +1,5 @@
+_target_: src.searcher.pso.PSOSearcher
+num_solutions: 128
+n_gen: 200
+
+MAXIMIZE: true

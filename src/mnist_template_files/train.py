@@ -1,12 +1,9 @@
-import os
-from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
-
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import hydra
 import lightning as L
 import rootutils
+import torch
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
@@ -29,8 +26,6 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # more info: https://github.com/ashleve/rootutils
 # ------------------------------------------------------------------------------------ #
 
-from src.searcher.base import BaseSearcher
-from src.tasks.base import OfflineBBOTask
 from src.utils import (
     RankedLogger,
     extras,
@@ -38,7 +33,6 @@ from src.utils import (
     instantiate_callbacks,
     instantiate_loggers,
     log_hyperparameters,
-    model_fitness_function,
     task_wrapper,
 )
 
@@ -66,9 +60,6 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
 
-    log.info(f"Instantiating task <{cfg.task._target_}>")
-    task: OfflineBBOTask = hydra.utils.instantiate(cfg.task)
-
     log.info("Instantiating callbacks...")
     callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
 
@@ -87,7 +78,6 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         "callbacks": callbacks,
         "logger": logger,
         "trainer": trainer,
-        "task": task,
     }
 
     if logger:
@@ -106,24 +96,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if ckpt_path == "":
             log.warning("Best ckpt not found! Using current weights for testing...")
             ckpt_path = None
-
-        lb, ub = task.bounds
-
-        log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
-        searcher: BaseSearcher = hydra.utils.instantiate(
-            cfg.searcher,
-            task=task,
-            score_fn=lambda x: model_fitness_function(x, model=model),
-        )
-
-        x_res = searcher.run()
-        y_res = task.evaluate(x_res, return_normalized_y=True)
-        print(y_res.max())
-        for logger0 in logger:
-            logger0.log_metrics({"score": y_res.max()})
-        exit()
-        # trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
-        # log.info(f"Best ckpt path: {ckpt_path}")
+        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        log.info(f"Best ckpt path: {ckpt_path}")
 
     test_metrics = trainer.callback_metrics
 

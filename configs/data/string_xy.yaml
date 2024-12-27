@@ -1,0 +1,7 @@
+_target_: src.data.string_datamodule.StringXYDataModule
+task_name: ${task.task_name} 
+val_ratio: 0.2 
+batch_size: 128
+num_workers: 64
+persistent_workers: true
+pin_memory: false 

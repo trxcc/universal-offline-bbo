@@ -12,6 +12,10 @@ class SimpleMLP(nn.Module):
         output_dim: int = 1,
     ) -> None:
         super(SimpleMLP, self).__init__()
+        
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
 
         if isinstance(hidden_dim, int):
             hidden_dim = [hidden_dim]

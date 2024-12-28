@@ -81,7 +81,7 @@ class DesignBenchTask(OfflineBBOTask):
 
         self.task_type = "Categorical" if self.task.is_discrete else "Continuous"
 
-        self.scale_up_ratio = scale_up_ratio
+        self.scale_up_ratio = scale_up_ratio if self.task_type == "Continuous" else 1.0
 
         super(DesignBenchTask, self).__init__(
             task_name,

@@ -27,6 +27,7 @@ root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True
 #     exit()
 
 from src.searcher.cde import CDESearcher
+from src.searcher.ga import GASearcher
 from src.searcher.pso import PSOSearcher
 from src.tasks.design_bench_task import DesignBenchTask
 
@@ -49,7 +50,7 @@ ub = task.x_np.max(axis=0)
 #     num_solutions=128,
 #     MAXIMIZE=True,
 # )
-searcher = PSOSearcher(
+searcher = GASearcher(
     task=task, score_fn=task.evaluate, num_solutions=128, MAXIMIZE=True, n_gen=100
 )
 x_res = searcher.run()

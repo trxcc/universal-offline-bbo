@@ -7,6 +7,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import hydra
 import lightning as L
 import rootutils
+import torch
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
@@ -106,8 +107,19 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if ckpt_path == "":
             log.warning("Best ckpt not found! Using current weights for testing...")
             ckpt_path = None
+        if not ckpt_path and (cfg.ckpt_path is not None and cfg.ckpt_path != ""):
+            ckpt_path = cfg.ckpt_path
 
-        lb, ub = task.bounds
+        log.info(f"ckpt_path is {ckpt_path}")
+
+        if ckpt_path is not None:
+            log.info(f"loading checkpoint from {ckpt_path}")
+            checkpoint = torch.load(ckpt_path)
+            new_state_dict = {}
+            for k, v in checkpoint["state_dict"].items():
+                new_key = k.replace("_orig_mod.", "")
+                new_state_dict[new_key] = v
+            model.load_state_dict(new_state_dict)
 
         log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
         searcher: BaseSearcher = hydra.utils.instantiate(
@@ -119,6 +131,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         x_res = searcher.run()
         y_res = task.evaluate(x_res, return_normalized_y=True)
         print(y_res.max())
+        log.info(f"100% final score: {y_res.max()}")
         for logger0 in logger:
             logger0.log_metrics({"score": y_res.max()})
         exit()

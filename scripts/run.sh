@@ -1,6 +1,6 @@
-tasks="AntMorphology-Exact-v0 DKittyMorphology-Exact-v0 Superconductor-RandomForest-v0"
+tasks="AntMorphology-Exact-v0 DKittyMorphology-Exact-v0 Superconductor-RandomForest-v0 TFBind8-Exact-v0 TFBind10-Exact-v0"
 
-MAX_JOBS=4
+MAX_JOBS=8
 AVAILABLE_GPUS="0 1 2 3"
 MAX_RETRIES=0
 

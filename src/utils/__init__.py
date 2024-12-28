@@ -1,4 +1,7 @@
-from src.utils.data_transformation import model_fitness_function
+from src.utils.data_transformation import (
+    model_fitness_function,
+    model_fitness_function_string,
+)
 from src.utils.instantiators import instantiate_callbacks, instantiate_loggers
 from src.utils.logging_utils import log_hyperparameters
 from src.utils.pylogger import RankedLogger

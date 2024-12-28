@@ -14,6 +14,7 @@ class RegressorModule(LightningModule):
 
     def __init__(
         self,
+        input_dim: int,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler,
@@ -23,8 +24,8 @@ class RegressorModule(LightningModule):
 
         self.save_hyperparameters(logger=False)
 
-        self.model = model
-        self.batch_norm = nn.BatchNorm1d(model.input_dim)
+        self.model = model(input_dim=input_dim)
+        self.batch_norm = nn.BatchNorm1d(input_dim)
 
         self.criterion = nn.MSELoss()
 
@@ -109,29 +110,18 @@ class RegressorModule(LightningModule):
 
     def setup(self, stage: str) -> None:
         if self.hparams.compile and stage == "fit":
-            self.regressor = torch.compile(self.regressor)
-            self.embedder = torch.compile(self.embedder)
+            self.model = torch.compile(self.model)
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        optimizer = self.hparams.regressor_optimizer(
-            params=self.trainer.model.parameters()
-        )
-        embedder_optimizer = self.hparams.embedder_optimizer(
-            params=self.embedder.parameters()
-        )
+        optimizer = self.hparams.optimizer(params=self.trainer.model.parameters())
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
-            return [
-                {
-                    "optimizer": optimizer,
-                    "lr_scheduler": {
-                        "scheduler": scheduler,
-                        "interval": "epoch",
-                        "frequency": 1,
-                    },
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "interval": "epoch",
+                    "frequency": 1,
                 },
-                {
-                    "optimizer": embedder_optimizer,
-                },
-            ]
-        return [optimizer, embedder_optimizer]
+            }
+        return optimizer

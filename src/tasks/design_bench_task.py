@@ -120,15 +120,28 @@ class DesignBenchTask(OfflineBBOTask):
         x_min = self.x_np.min(axis=0)
         x_max = self.x_np.max(axis=0)
 
+        if self.task_type == "Categorical":
+            return x_min, x_max
+
         x_center = (x_max + x_min) / 2
 
-        x_width = x_max - x_min + 1e6
+        x_width = x_max - x_min + 1e-6
         x_width_scaled = x_width * self.scale_up_ratio
 
         new_x_min = x_center - x_width_scaled / 2
         new_x_max = x_center + x_width_scaled / 2
 
         return new_x_min, new_x_max
+
+    @property
+    def ndim_problem(self) -> int:
+        return self.x_np.shape[1]
+
+    @property
+    def num_classes(self) -> int:
+        if self.task_type == "Continuous":
+            raise ValueError("continuous task does not support num_classes attribute")
+        return self.task.num_classes
 
 
 if __name__ == "__main__":

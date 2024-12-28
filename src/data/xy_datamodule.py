@@ -1,22 +1,19 @@
-import json
-import os
 from typing import Any, Optional
 
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
 from torch.utils.data.distributed import DistributedSampler
 
-from src.data.components.text_value_dataset import TextValueDataset
+from src.tasks.base import OfflineBBOTask
 
 
-class StringXYDataModule(LightningDataModule):
+class XYDataModule(LightningDataModule):
 
     def __init__(
         self,
-        task_name: str,
         *,
-        data_dir: str = "data/",
+        task: OfflineBBOTask,
         val_ratio: float = 0.2,
         batch_size: int = 128,
         num_workers: int = 0,
@@ -25,9 +22,9 @@ class StringXYDataModule(LightningDataModule):
         device: Optional[torch.device] = None,
     ) -> None:
         super().__init__()
-        assert os.path.exists(data_dir)
         assert 0 < val_ratio < 1
 
+        self.task = task
         self.device = device or torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
@@ -57,23 +54,22 @@ class StringXYDataModule(LightningDataModule):
             #     self.device = self.trainer.accelerator.device
 
         if not self.data_train or not self.data_val:
-            # TODO: Load data as a single function
-            data_file = f"{self.hparams.data_dir}/{self.hparams.task_name}.json"
-            assert os.path.exists(data_file)
-            with open(data_file, "r") as f:
-                data = json.load(f)
+            self.x_values = self.task.x_np
+            self.y_values = self.task.y_np
+            assert len(self.x_values) == len(self.y_values)
 
-            y_values = [d["y"] for d in data]
-            x_values = [", ".join(d["x"]) for d in data]
-            assert len(x_values) == len(y_values)
+            self.y_values = self.task.task.normalize_y(self.y_values)
+            if self.task.task_type == "Categorical":
+                self.x_values = self.task.task.to_logits(self.x_values)
+                self.x_values = self.x_values.reshape(self.x_values.shape[0], -1)
 
-            dataset = TextValueDataset(
-                x_values,
-                y_values,
-            )
+            self.x_values = torch.from_numpy(self.x_values)
+            self.y_values = torch.from_numpy(self.y_values)
+
+            dataset = TensorDataset(self.x_values, self.y_values)
             lengths = [
-                len(x_values) - int(len(x_values) * self.hparams.val_ratio),
-                int(len(x_values) * self.hparams.val_ratio),
+                len(self.x_values) - int(len(self.x_values) * self.hparams.val_ratio),
+                int(len(self.x_values) * self.hparams.val_ratio),
             ]
             self.data_train, self.data_val = random_split(
                 dataset=dataset, lengths=lengths

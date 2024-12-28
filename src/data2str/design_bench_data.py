@@ -33,7 +33,10 @@ def create_task(task_name: str) -> Tuple[Task, TaskMetadata, TaskData]:
     is_continuous = task_name in CONTINUOUS_TASKS
     is_categorical = not is_continuous
 
-    task: Task = db.make(task_name)
+    if task_name == "TFBind10-Exact-v0":
+        task: Task = db.make(task_name, dataset_kwargs={"max_samples": 10000})
+    else:
+        task: Task = db.make(task_name)
     if is_continuous:
         metadata = ContinuousTaskMetadata(
             name=task_name,

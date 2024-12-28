@@ -2,8 +2,6 @@ import os
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 import hydra
 import lightning as L
 import rootutils
@@ -39,7 +37,7 @@ from src.utils import (
     instantiate_callbacks,
     instantiate_loggers,
     log_hyperparameters,
-    model_fitness_function_string,
+    model_fitness_function,
     task_wrapper,
 )
 
@@ -61,14 +59,21 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     if cfg.get("seed"):
         L.seed_everything(cfg.seed, workers=True)
 
-    log.info(f"Instantiating datamodule <{cfg.data._target_}>")
-    datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
-
-    log.info(f"Instantiating model <{cfg.model._target_}>")
-    model: LightningModule = hydra.utils.instantiate(cfg.model)
-
     log.info(f"Instantiating task <{cfg.task._target_}>")
     task: OfflineBBOTask = hydra.utils.instantiate(cfg.task)
+
+    log.info(f"Instantiating datamodule <{cfg.data._target_}>")
+    datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data, task=task)
+
+    log.info(f"Instantiating model <{cfg.model._target_}>")
+    model: LightningModule = hydra.utils.instantiate(
+        cfg.model,
+        input_dim=(
+            task.ndim_problem * (task.num_classes - 1)
+            if task.task_type == "Categorical"
+            else task.ndim_problem
+        ),
+    )
 
     log.info("Instantiating callbacks...")
     callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
@@ -115,17 +120,20 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if ckpt_path is not None:
             log.info(f"loading checkpoint from {ckpt_path}")
             checkpoint = torch.load(ckpt_path)
-            new_state_dict = {}
-            for k, v in checkpoint["state_dict"].items():
-                new_key = k.replace("_orig_mod.", "")
-                new_state_dict[new_key] = v
-            model.load_state_dict(new_state_dict)
+            try:
+                model.load_state_dict(checkpoint["state_dict"])
+            except:
+                new_state_dict = {}
+                for k, v in checkpoint["state_dict"].items():
+                    new_key = k.replace("_orig_mod.", "")
+                    new_state_dict[new_key] = v
+                model.load_state_dict(new_state_dict)
 
         log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
         searcher: BaseSearcher = hydra.utils.instantiate(
             cfg.searcher,
             task=task,
-            score_fn=lambda x: model_fitness_function_string(x, model=model),
+            score_fn=lambda x: model_fitness_function(x, model=model, task=task),
         )
 
         x_res = searcher.run()

@@ -51,6 +51,7 @@ for task in $tasks; do
     ((job_number++))
     run_with_retry "src/train.py \
         experiment=embed_regress \
+        ++seed=42 \
         ++task.task_name=${task}" \
         "$gpu_allocation" & 
 

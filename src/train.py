@@ -115,11 +115,14 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if ckpt_path is not None:
             log.info(f"loading checkpoint from {ckpt_path}")
             checkpoint = torch.load(ckpt_path)
-            new_state_dict = {}
-            for k, v in checkpoint["state_dict"].items():
-                new_key = k.replace("_orig_mod.", "")
-                new_state_dict[new_key] = v
-            model.load_state_dict(new_state_dict)
+            try:
+                model.load_state_dict(checkpoint["state_dict"])
+            except:
+                new_state_dict = {}
+                for k, v in checkpoint["state_dict"].items():
+                    new_key = k.replace("_orig_mod.", "")
+                    new_state_dict[new_key] = v
+                model.load_state_dict(new_state_dict)
 
         log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
         searcher: BaseSearcher = hydra.utils.instantiate(
@@ -129,16 +132,18 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         )
 
         x_res = searcher.run()
-        y_res = task.evaluate(x_res, return_normalized_y=True)
-        print(y_res.max())
-        log.info(f"100% final score: {y_res.max()}")
-        for logger0 in logger:
-            logger0.log_metrics({"score": y_res.max()})
-        exit()
+        score_dict = task.evaluate(x_res, return_normalized_y=True)
+        log.info("Final score statistics:")
+        for score_desc, score in score_dict.items():
+            log.info(f"{score_desc}: {score}")
+            for logger0 in logger:
+                logger0.log_metrics({score_desc: score}, step=1)
+
         # trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         # log.info(f"Best ckpt path: {ckpt_path}")
 
-    test_metrics = trainer.callback_metrics
+    # test_metrics = trainer.callback_metrics
+    test_metrics = score_dict
 
     # merge train and test metrics
     metric_dict = {**train_metrics, **test_metrics}
@@ -171,3 +176,8 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
+# universal-offline-bbo/logs/embed_regress_Superconductor-RandomForest-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
+# universal-offline-bbo/logs/embed_regress_AntMorphology-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
+# universal-offline-bbo/logs/embed_regress_DKittyMorphology-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
+# universal-offline-bbo/logs/embed_regress_TFBind8-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
+# universal-offline-bbo/logs/embed_regress_TFBind10-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt

@@ -1,5 +1,5 @@
 import abc
-from typing import Optional, Sequence, Tuple, Union
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -10,7 +10,7 @@ class BaseTask:
     @abc.abstractmethod
     def evaluate(
         self, x: Union[Sequence[DESIGN_TYPE], np.ndarray]
-    ) -> Union[Sequence[Union[int, float]], np.ndarray]:
+    ) -> Dict[str, Union[Sequence[Union[int, float]], np.ndarray]]:
         pass
 
 

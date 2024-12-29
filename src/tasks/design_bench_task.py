@@ -93,7 +93,9 @@ class DesignBenchTask(OfflineBBOTask):
             y_ood_np=y_ood,
         )
 
-    def evaluate(self, x: np.ndarray, return_normalized_y: bool = True):
+    def evaluate(
+        self, x: np.ndarray, return_normalized_y: bool = True
+    ) -> Dict[str, np.ndarray]:
         if self.task_type == "Continuous":
             assert x.dtype in [
                 np.float32,
@@ -107,13 +109,30 @@ class DesignBenchTask(OfflineBBOTask):
         else:
             raise NotImplementedError
 
+        def get_percentile_score(
+            score: np.ndarray, prefix: str = ""
+        ) -> Dict[str, float]:
+            prefix = f"{prefix}/" if prefix != "" else prefix
+            return {
+                f"{prefix}score/100th": np.max(score).item(),
+                f"{prefix}score/75th": np.percentile(score, 75).item(),
+                f"{prefix}score/50th": np.median(score).item(),
+                f"{prefix}score/25th": np.percentile(score, 25).item(),
+            }
+
         x = x.reshape(-1, self.x_np.shape[1])
         score = self.task.predict(x)
+        score_dict = get_percentile_score(score)
 
         if return_normalized_y:
-            score = (score - self.full_y_min) / (self.full_y_max - self.full_y_min)
+            normalized_score = (score - self.full_y_min) / (
+                self.full_y_max - self.full_y_min
+            )
+            score_dict.update(
+                get_percentile_score(normalized_score, prefix="normalized")
+            )
 
-        return score
+        return score_dict
 
     @property
     def bounds(self) -> Tuple[np.ndarray, np.ndarray]:

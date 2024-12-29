@@ -137,16 +137,18 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         )
 
         x_res = searcher.run()
-        y_res = task.evaluate(x_res, return_normalized_y=True)
-        print(y_res.max())
-        log.info(f"100% final score: {y_res.max()}")
-        for logger0 in logger:
-            logger0.log_metrics({"score": y_res.max()})
-        exit()
+        score_dict = task.evaluate(x_res, return_normalized_y=True)
+        log.info("Final score statistics:")
+        for score_desc, score in score_dict.items():
+            log.info(f"{score_desc}: {score}")
+            for logger0 in logger:
+                logger0.log_metrics({score_desc: score}, step=1)
+
         # trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         # log.info(f"Best ckpt path: {ckpt_path}")
 
-    test_metrics = trainer.callback_metrics
+    # test_metrics = trainer.callback_metrics
+    test_metrics = score_dict
 
     # merge train and test metrics
     metric_dict = {**train_metrics, **test_metrics}

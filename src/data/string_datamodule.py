@@ -67,9 +67,14 @@ class StringXYDataModule(LightningDataModule):
             x_values = [", ".join(d["x"]) for d in data]
             assert len(x_values) == len(y_values)
 
+            metadata_file = f"{self.hparams.data_dir}/{self.hparams.task_name}.metadata"
+            with open(metadata_file, "r") as f:
+                metadata = f.read()
+
             dataset = TextValueDataset(
                 x_values,
                 y_values,
+                metadata,
             )
             lengths = [
                 len(x_values) - int(len(x_values) * self.hparams.val_ratio),

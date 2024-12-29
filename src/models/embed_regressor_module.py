@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+from itertools import chain
 from typing import Any, Dict, Optional, Tuple
 
 import torch
@@ -22,6 +24,7 @@ class EmbedRegressorModule(LightningModule):
         regressor_optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler,
         compile: bool,
+        tokenizer_max_length: Optional[int] = None,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         metadata_embedder: Optional[nn.Module] = None,
         metadata_embedder_output_dim: Optional[int] = None,
@@ -40,15 +43,32 @@ class EmbedRegressorModule(LightningModule):
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
 
-        self.optimize_m_embedder = metadata_embedder_optimizer is not None
-        self.has_m = (
+        self.has_metadata = (
             (metadata_embedder is not None)
             and (metadata_embedder_output_dim is not None)
-            and (metadata_projector is not None)
             and (metadata_projector_output_dim is not None)
         )
+        self.optimize_metadata_embedder = (
+            self.has_metadata and metadata_embedder_optimizer is not None
+        )
 
-        self.batch_norm = nn.BatchNorm1d(embedder_output_dim)
+        if self.has_metadata:
+            self.metadata_embedder = metadata_embedder
+            self.metadata_embedder_output_dim = metadata_embedder_output_dim
+            if metadata_projector is None:
+                metadata_projector = nn.Linear(
+                    in_features=metadata_embedder_output_dim,
+                    out_features=metadata_projector_output_dim,
+                )
+            self.metadata_projector = metadata_projector
+            self.metadata_projector_output_dim = metadata_projector_output_dim
+
+        if not self.has_metadata:
+            self.batch_norm = nn.BatchNorm1d(embedder_output_dim)
+        else:
+            self.batch_norm = nn.BatchNorm1d(
+                embedder_output_dim + metadata_projector_output_dim
+            )
         # self.layer_norm = nn.LayerNorm(embedder_output_dim)
 
         self.criterion = nn.MSELoss()
@@ -61,13 +81,38 @@ class EmbedRegressorModule(LightningModule):
 
         self.val_rank_corr_best = MaxMetric()
 
-    def forward(self, x: Tuple[str]) -> torch.Tensor:
+    def _emb_metadata(self, m: Tuple[str]) -> torch.Tensor:
+        context = (
+            torch.no_grad() if not self.optimize_metadata_embedder else nullcontext()
+        )
+        with context:
+            encoded_input = self.tokenizer(
+                m,
+                max_length=self.hparams.tokenizer_max_length,
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+            ).to(self.device)
+            emb_m = self.metadata_embedder(**encoded_input)
+            emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
+        return emb_m
+
+    def forward(self, x: Tuple[str], m: Tuple[str]) -> torch.Tensor:
         encoded_input = self.tokenizer(
-            x, padding=True, truncation=True, return_tensors="pt"
+            x,
+            max_length=self.hparams.tokenizer_max_length,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
         ).to(self.device)
         x_emb = self.embedder(**encoded_input)
         x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
-        # x_emb = self.layer_norm(x_emb)
+
+        if self.has_metadata:
+            m_emb = self._emb_metadata(m)
+            m_emb = self.metadata_projector(m_emb)
+            x_emb = torch.cat((x_emb, m_emb), dim=1)
+
         x_emb = self.batch_norm(x_emb)
         preds = self.regressor(x_emb)
         return preds
@@ -98,17 +143,21 @@ class EmbedRegressorModule(LightningModule):
         self.val_rank_corr_best.reset()
 
     def model_step(
-        self, batch: Tuple[BatchEncoding, torch.Tensor]
+        self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]]
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        encoded_input, y = batch
-        preds = self.forward(encoded_input)
+        x, y, m = batch
+        preds = self.forward(x, m)
         loss = self.criterion(preds.squeeze(), y.squeeze())
         return loss, preds, y
 
     def training_step(
-        self, batch: Tuple[str, torch.Tensor], batch_idx: int
+        self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]], batch_idx: int
     ) -> torch.Tensor:
-        opt_regress, opt_embed = self.optimizers()
+        if self.optimize_metadata_embedder:
+            opt_regress, opt_embed, opt_m_embed = self.optimizers()
+            opt_m_embed.zero_grad()
+        else:
+            opt_regress, opt_embed = self.optimizers()
         opt_regress.zero_grad()
         opt_embed.zero_grad()
 
@@ -117,6 +166,8 @@ class EmbedRegressorModule(LightningModule):
 
         opt_embed.step()
         opt_regress.step()
+        if self.optimize_metadata_embedder:
+            opt_m_embed.step()
 
         self.train_loss(loss)
         self.train_rank_corr(preds.squeeze(), targets.squeeze())
@@ -136,7 +187,9 @@ class EmbedRegressorModule(LightningModule):
     def on_train_epoch_end(self) -> None:
         pass
 
-    def validation_step(self, batch: Tuple[str, torch.Tensor], batch_idx: int) -> None:
+    def validation_step(
+        self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]], batch_idx: int
+    ) -> None:
         loss, preds, targets = self.model_step(batch)
         self.val_loss(loss)
         self.val_rank_corr(preds.squeeze(), targets.squeeze())
@@ -171,16 +224,31 @@ class EmbedRegressorModule(LightningModule):
             self.regressor = torch.compile(self.regressor)
             self.embedder = torch.compile(self.embedder)
 
+            if self.has_metadata:
+                self.metadata_embedder = torch.compile(self.metadata_embedder)
+                self.metadata_projector = torch.compile(self.metadata_projector)
+
     def configure_optimizers(self) -> Dict[str, Any]:
-        optimizer = self.hparams.regressor_optimizer(
-            params=self.trainer.model.parameters()
-        )
+        if self.has_metadata:
+            regressor_params = chain(
+                self.trainer.model.parameters(),
+                self.metadata_projector.parameters(),
+            )
+            if self.optimize_metadata_embedder:
+                metadata_embedder_optimizer = self.hparams.metadata_embedder_optimizer(
+                    params=self.metadata_embedder.parameters()
+                )
+        else:
+            regressor_params = self.trainer.model.parameters()
+
+        optimizer = self.hparams.regressor_optimizer(params=regressor_params)
         embedder_optimizer = self.hparams.embedder_optimizer(
             params=self.embedder.parameters()
         )
+
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
-            return [
+            optimizers = [
                 {
                     "optimizer": optimizer,
                     "lr_scheduler": {
@@ -193,4 +261,10 @@ class EmbedRegressorModule(LightningModule):
                     "optimizer": embedder_optimizer,
                 },
             ]
-        return [optimizer, embedder_optimizer]
+        else:
+            optimizers = [optimizer, embedder_optimizer]
+
+        if self.optimize_metadata_embedder:
+            optimizers.append({"optimizer": metadata_embedder_optimizer})
+
+        return optimizers

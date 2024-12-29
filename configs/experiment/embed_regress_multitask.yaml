@@ -19,7 +19,7 @@ tags: ["universal", "embed_regress"]
 seed: 12345
 
 trainer:
-  min_epochs: 2
+  min_epochs: 200
   max_epochs: 200
 #   gradient_clip_val: 0.5
 
@@ -31,29 +31,6 @@ trainer:
 #     lin2_size: 256
 #     lin3_size: 64
 #   compile: false
-
-model:
-  tokenizer_max_length: 400
-  metadata_embedder: 
-    _target_: transformers.AutoModel.from_pretrained
-    pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
-  metadata_embedder_output_dim: 384
-
-  metadata_embedder_optimizer:
-    _target_: torch.optim.AdamW
-    _partial_: true 
-    lr: 0.0001
-    weight_decay: 0.00001
-
-  metadata_projector:
-    _target_: torch.nn.Linear
-    in_features: 384
-    out_features: 32
-  metadata_projector_output_dim: 32
-
-  regressor:
-    input_dim: 416
-  
 
 task:
   task_name: Superconductor-RandomForest-v0

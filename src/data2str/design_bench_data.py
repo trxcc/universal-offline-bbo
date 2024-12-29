@@ -1,10 +1,13 @@
 from typing import Tuple
 
+from src.data2str.task_data import CategoricalTaskData, ContinuousTaskData, TaskData
+from src.data2str.task_metadata import (
+    CategoricalTaskMetadata,
+    ContinuousTaskMetadata,
+    TaskMetadata,
+)
 from src.tasks.base import OfflineBBOTask
 from src.tasks.design_bench_task import DesignBenchTask
-
-from src.data2str.task_data import CategoricalTaskData, ContinuousTaskData, TaskData
-from src.data2str.task_metadata import CategoricalTaskMetadata, ContinuousTaskMetadata, TaskMetadata
 
 TASKNAMES = [
     "AntMorphology-Exact-v0",

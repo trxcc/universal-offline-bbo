@@ -1,5 +1,5 @@
 _target_: src.data.string_datamodule.StringXYDataModule
-task_name: ${task.task_name} 
+task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0
 val_ratio: 0.2 
 batch_size: 128
 num_workers: 64

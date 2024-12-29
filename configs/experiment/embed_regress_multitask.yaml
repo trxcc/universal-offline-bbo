@@ -14,35 +14,49 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["universal", "embed_regress"]
+tags: ["universal", "embed_regress", "multi_task"]
 
-seed: 12345
+seed: 42
+
+data:
+  task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  batch_size: 128
 
 trainer:
-  min_epochs: 200
+  min_epochs: 2
   max_epochs: 200
-#   gradient_clip_val: 0.5
 
-# model:
-#   optimizer:
-#     lr: 0.002
-#   net:
-#     lin1_size: 128
-#     lin2_size: 256
-#     lin3_size: 64
-#   compile: false
+model:
+  tokenizer_max_length: 400
+  metadata_embedder: 
+    _target_: transformers.AutoModel.from_pretrained
+    pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
+  metadata_embedder_output_dim: 384
+
+  metadata_embedder_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true 
+    lr: 0.0001
+    weight_decay: 0.00001
+
+  metadata_projector:
+    _target_: torch.nn.Linear
+    in_features: 384
+    out_features: 32
+  metadata_projector_output_dim: 32
+
+  regressor:
+    input_dim: 416
+  
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-data:
-  batch_size: 128
+task_name: embed_regress_multitask_m_emb
 
 logger:
   wandb:
     tags: ${tags}
     project: "Universal"
-    group: "vanilla_regress"
+    group: "embed_regress_multitask_m_emb"
     job_type: "train"
-
-task_name: embed_regress_${task.task_name}

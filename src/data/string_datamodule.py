@@ -14,7 +14,7 @@ class StringXYDataModule(LightningDataModule):
 
     def __init__(
         self,
-        task_name: str,
+        task_names: str,
         *,
         data_dir: str = "data/",
         val_ratio: float = 0.2,
@@ -58,23 +58,35 @@ class StringXYDataModule(LightningDataModule):
 
         if not self.data_train or not self.data_val:
             # TODO: Load data as a single function
-            data_file = f"{self.hparams.data_dir}/{self.hparams.task_name}.json"
-            assert os.path.exists(data_file)
-            with open(data_file, "r") as f:
-                data = json.load(f)
+            if "," in self.hparams.task_names:
+                task_names = list(self.hparams.task_names.split(","))
+            else:
+                task_names = [self.hparams.task_names]
 
-            y_values = [d["y"] for d in data]
-            x_values = [", ".join(d["x"]) for d in data]
-            assert len(x_values) == len(y_values)
+            x_values = []
+            y_values = []
+            metadatas = []
+            for task_name in task_names:
+                data_file = f"{self.hparams.data_dir}/{task_name}.json"
+                assert os.path.exists(data_file)
+                with open(data_file, "r") as f:
+                    data = json.load(f)
 
-            metadata_file = f"{self.hparams.data_dir}/{self.hparams.task_name}.metadata"
-            with open(metadata_file, "r") as f:
-                metadata = f.read()
+                ys = [d["y"] for d in data]
+                xs = [", ".join(d["x"]) for d in data]
+                y_values.extend(ys)
+                x_values.extend(xs)
+                assert len(xs) == len(ys)
+
+                metadata_file = f"{self.hparams.data_dir}/{task_name}.metadata"
+                with open(metadata_file, "r") as f:
+                    metadata = f.read()
+                    metadatas.extend([metadata for _ in range(len(xs))])
 
             dataset = TextValueDataset(
                 x_values,
                 y_values,
-                metadata,
+                metadatas,
             )
             lengths = [
                 len(x_values) - int(len(x_values) * self.hparams.val_ratio),
@@ -111,7 +123,7 @@ class StringXYDataModule(LightningDataModule):
                 self.data_val,
                 num_replicas=self.trainer.world_size,
                 rank=self.trainer.global_rank,
-                shuffle=False,
+                shuffle=True,
             )
 
         return DataLoader(
@@ -119,7 +131,7 @@ class StringXYDataModule(LightningDataModule):
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
-            shuffle=False,
+            shuffle=True,
             persistent_workers=self.hparams.persistent_workers,
             sampler=sampler,
         )
@@ -130,5 +142,5 @@ class StringXYDataModule(LightningDataModule):
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
-            shuffle=False,
+            shuffle=True,
         )

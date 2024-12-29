@@ -8,7 +8,7 @@ root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True
 from src.data.string_datamodule import StringXYDataModule
 
 data_module = StringXYDataModule(
-    "Superconductor-RandomForest-v0",
+    "Superconductor-RandomForest-v0,AntMorphology-Exact-v0,DKittyMorphology-Exact-v0",
     data_dir=root / "data",
     # tokenizer=AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2"),
     val_ratio=0.2,

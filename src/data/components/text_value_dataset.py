@@ -9,20 +9,20 @@ class TextValueDataset(Dataset):
         self,
         texts: List[str],
         values: List[float],
-        metadata: Optional[str] = None,
+        metadatas: Optional[str] = None,
     ) -> None:
         self.texts = texts
         self.values = torch.tensor(values, dtype=torch.float32)
         self.values = (self.values - self.values.mean(dim=0)) / self.values.std(dim=0)
-        self.metadata = metadata
+        self.metadatas = metadatas
 
     def __len__(self):
         return len(self.texts)
 
     def __getitem__(self, idx: int) -> Tuple[str, torch.Tensor]:
-        text, value = self.texts[idx], self.values[idx]
+        text, value, metadata = self.texts[idx], self.values[idx], self.metadatas[idx]
 
-        return text, value, self.metadata
+        return text, value, metadata
 
 
 if __name__ == "__main__":

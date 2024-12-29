@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple, Union
 class TaskMetadata(ABC):
     name: str
     input_dim: int
+    objective: str
+    description: str 
 
     @abstractmethod
     def get_variable_metadata(self) -> Dict:
@@ -29,8 +31,15 @@ class ContinuousTaskMetadata(TaskMetadata):
             for i in range(self.input_dim)
         }
 
-    def to_string(self) -> List[str]:
-        return [f"x{i}:DOUBLE, {list(bound)}" for i, bound in enumerate(self.bounds)]
+    def to_string(self) -> str:
+        data_str = "; ".join(
+            [f"x{i}:DOUBLE, {list(bound)}" for i, bound in enumerate(self.bounds)]
+        )
+        task_str = f"name: '{self.name}'"
+        if self.description:
+            task_str = f"{task_str}, description: '{self.description}'"
+        task_str = f"{task_str}, objective: '{self.objective}'"
+        return f"{task_str}. [SEP] Data info: {data_str}"
 
 
 @dataclass
@@ -43,5 +52,12 @@ class CategoricalTaskMetadata(TaskMetadata):
             for i in range(self.input_dim)
         }
 
-    def to_string(self) -> List[str]:
-        return [f"x{i}:CATEGORICAL, {self.n_categories}" for i in range(self.input_dim)]
+    def to_string(self) -> str:
+        data_str = "; ".join(
+            [f"x{i}:CATEGORICAL, {self.n_categories}" for i in range(self.input_dim)]
+        )
+        task_str = f"name: '{self.name}'"
+        if self.description:
+            task_str = f"{task_str}, description: '{self.description}'"
+        task_str = f"{task_str}, objective: '{self.objective}'"
+        return f"{task_str}. [SEP] Data info: {data_str}"

@@ -36,7 +36,7 @@ class ContinuousTaskData(TaskData):
 class CategoricalTaskData(TaskData):
     def to_string(self) -> List[List[str]]:
         return [
-            [f"x{i}: {int(value)}" for i, value in enumerate(data)]
+            [f"x{i}: '{int(value)}'" for i, value in enumerate(data)]
             for data in self.data
         ]
 

@@ -23,6 +23,11 @@ class EmbedRegressorModule(LightningModule):
         scheduler: torch.optim.lr_scheduler,
         compile: bool,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
+        metadata_embedder: Optional[nn.Module] = None,
+        metadata_embedder_output_dim: Optional[int] = None,
+        metadata_projector: Optional[nn.Module] = None,
+        metadata_projector_output_dim: Optional[int] = None,
+        metadata_embedder_optimizer: Optional[torch.optim.Optimizer] = None,
     ) -> None:
         super().__init__()
 
@@ -34,6 +39,14 @@ class EmbedRegressorModule(LightningModule):
         self.embedder = embedder
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
+
+        self.optimize_m_embedder = metadata_embedder_optimizer is not None
+        self.has_m = (
+            (metadata_embedder is not None)
+            and (metadata_embedder_output_dim is not None)
+            and (metadata_projector is not None)
+            and (metadata_projector_output_dim is not None)
+        )
 
         self.batch_norm = nn.BatchNorm1d(embedder_output_dim)
         # self.layer_norm = nn.LayerNorm(embedder_output_dim)

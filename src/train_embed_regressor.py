@@ -125,10 +125,13 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 model.load_state_dict(new_state_dict)
 
         log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
+        with open(f"./data/{cfg.task.task_name}.metadata", "r") as f:
+            m = f.read()
         searcher: BaseSearcher = hydra.utils.instantiate(
             cfg.searcher,
             task=task,
-            score_fn=lambda x: model_fitness_function_string(x, model=model),
+            score_fn=lambda x: model_fitness_function_string(x, m=m, model=model),
+            # universal-offline-bbo/logs/embed_regress_multitask_m_emb/runs/2024-12-30_00-28-09_seed42/checkpoints/last.ckpt
         )
 
         x_res = searcher.run()

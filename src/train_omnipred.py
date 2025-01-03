@@ -65,6 +65,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
+    model.model.config.decoder_start_token_id = datamodule.output_tokenizer.pad_token_id
 
     log.info(f"Instantiating task <{cfg.task._target_}>")
     task: OfflineBBOTask = hydra.utils.instantiate(cfg.task)
@@ -97,6 +98,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     if cfg.get("train"):
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+
+    exit()
 
     train_metrics = trainer.callback_metrics
 
@@ -178,8 +181,3 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
-# universal-offline-bbo/logs/embed_regress_Superconductor-RandomForest-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_AntMorphology-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_DKittyMorphology-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_TFBind8-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_TFBind10-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt

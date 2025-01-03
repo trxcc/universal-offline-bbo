@@ -39,7 +39,7 @@ class ContinuousTaskMetadata(TaskMetadata):
         if self.description:
             task_str = f"{task_str}, description: '{self.description}'"
         task_str = f"{task_str}, objective: '{self.objective}'"
-        return f"{task_str} [SEP] Data info: {data_str}"
+        return f"{task_str}. Data info: {data_str}"
 
 
 @dataclass
@@ -60,4 +60,4 @@ class CategoricalTaskMetadata(TaskMetadata):
         if self.description:
             task_str = f"{task_str}, description: '{self.description}'"
         task_str = f"{task_str}, objective: '{self.objective}'"
-        return f"{task_str} [SEP] Data info: {data_str}"
+        return f"{task_str}. Data info: {data_str}"

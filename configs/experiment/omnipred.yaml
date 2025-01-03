@@ -1,0 +1,41 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: omnipred
+  - override /model: omnipred
+  - override /callbacks: none
+  - override /trainer: default
+  - override /logger: wandb
+  - override /task: design_bench
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["universal", "omnipred", "test"]
+
+seed: 42
+
+data:
+  # task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  task_names: Superconductor-RandomForest-v0
+  batch_size: 128
+
+trainer:
+  min_epochs: 2
+  max_epochs: 2
+  
+
+task:
+  task_name: Superconductor-RandomForest-v0
+
+task_name: omnipred_test
+
+logger:
+  wandb:
+    tags: ${tags}
+    project: "Universal"
+    group: "omnipred_test"
+    job_type: "train"

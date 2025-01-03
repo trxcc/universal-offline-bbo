@@ -9,7 +9,7 @@ class TextValueDataset(Dataset):
         self,
         texts: List[str],
         values: List[float],
-        metadatas: Optional[str] = None,
+        metadatas: Optional[List[str]] = None,
     ) -> None:
         self.texts = texts
         self.values = torch.tensor(values, dtype=torch.float32)

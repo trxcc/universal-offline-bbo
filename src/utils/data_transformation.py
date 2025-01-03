@@ -8,7 +8,9 @@ from src.tasks.base import OfflineBBOTask
 
 
 @torch.no_grad()
-def model_fitness_function_string(x: np.ndarray, m: str, model: LightningModule) -> np.ndarray:
+def model_fitness_function_string(
+    x: np.ndarray, m: str, model: LightningModule
+) -> np.ndarray:
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
     assert len(x.shape) == 1 or len(x.shape) == 2
     if len(x.shape) == 1:

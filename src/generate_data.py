@@ -23,5 +23,5 @@ for task_name in TASKNAMES:
         json.dump(task_data, f, indent=2)
 
     metadata_file = f"{data_path}/{task_name}.metadata"
-    with open(metadata_file, "a") as f:
+    with open(metadata_file, "w") as f:
         f.write(metadata.to_string())

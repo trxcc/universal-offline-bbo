@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
-from transformers.tokenization_utils_base import BatchEncoding
 
 from src.utils import RankedLogger
 
@@ -166,9 +165,11 @@ class EmbedRegressorModule(LightningModule):
 
         torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
         torch.nn.utils.clip_grad_norm_(self.regressor.parameters(), max_norm=0.5)
-        
+
         if self.optimize_metadata_embedder:
-            torch.nn.utils.clip_grad_norm_(self.metadata_embedder.parameters(), max_norm=0.5)
+            torch.nn.utils.clip_grad_norm_(
+                self.metadata_embedder.parameters(), max_norm=0.5
+            )
 
         opt_embed.step()
         opt_regress.step()

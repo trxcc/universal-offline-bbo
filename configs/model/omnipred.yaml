@@ -1,0 +1,23 @@
+_target_: src.models.omnipred_module.OmnipredModule
+
+model: 
+  _target_: transformers.T5ForConditionalGeneration
+  config:
+    _target_: transformers.T5Config
+    vocab_size: 32128
+    num_layers: 6
+    num_decoder_layers: 6
+    d_kv: 32
+    d_model: 384
+    d_ff: 512
+    # decoder_start_token_id: ${data.output_tokenizer.pad_token_id}
+
+optimizer:
+  _target_: transformers.optimization.Adafactor
+  _partial_: true
+  lr: 0.01
+  decay_rate: -0.5
+  scale_parameter: true
+  relative_step: false
+
+compile: true

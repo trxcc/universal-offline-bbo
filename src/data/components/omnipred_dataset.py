@@ -36,6 +36,7 @@ class OmnipredDataset(Dataset):
         x = str(self.x_data[idx])
         y = str(self.y_data[idx])
 
+        # Encode input sequence
         x_tokens = self.input_tokenizer(
             x,
             padding="max_length",
@@ -44,6 +45,7 @@ class OmnipredDataset(Dataset):
             return_tensors="pt",
         )
 
+        # Encode target sequence
         y_tokens = self.output_tokenizer(
             y,
             padding="max_length",
@@ -52,8 +54,33 @@ class OmnipredDataset(Dataset):
             return_tensors="pt",
         )
 
+        # Create decoder_input_ids
+        decoder_input_ids = y_tokens["input_ids"].clone()
+        decoder_input_ids = self._shift_right(
+            decoder_input_ids.squeeze(),
+            self.output_tokenizer.pad_token_id,
+            self.output_tokenizer.decoder_start_token_id,
+        )
+
+        # For T5, we need to replace padding tokens in labels with -100
+        labels = y_tokens["input_ids"].squeeze()
+        labels[labels == self.output_tokenizer.pad_token_id] = -100
+
         return {
             "input_ids": x_tokens["input_ids"].squeeze(),
             "attention_mask": x_tokens["attention_mask"].squeeze(),
-            "labels": y_tokens["input_ids"].squeeze(),
+            "decoder_input_ids": decoder_input_ids,
+            "decoder_attention_mask": y_tokens["attention_mask"].squeeze(),
+            "labels": labels,
         }
+
+    def _shift_right(self, input_ids, pad_token_id, decoder_start_token_id):
+        """Shift decoder input ids right by prepending decoder_start_token_id."""
+        shifted_input_ids = input_ids.new_zeros(input_ids.shape)
+        shifted_input_ids[0] = decoder_start_token_id
+        shifted_input_ids[1:] = input_ids[:-1].clone()
+
+        # Replace possible -100 values in input_ids with pad_token_id
+        shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
+
+        return shifted_input_ids

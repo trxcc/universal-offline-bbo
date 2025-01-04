@@ -65,7 +65,18 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
-    model.model.config.decoder_start_token_id = datamodule.output_tokenizer.pad_token_id
+    model.model.generation_config.decoder_start_token_id = (
+        datamodule.output_tokenizer.bos_token_id
+    )
+    model.model.generation_config.bos_token_id = (
+        datamodule.output_tokenizer.bos_token_id
+    )
+    model.model.generation_config.pad_token_id = (
+        datamodule.output_tokenizer.pad_token_id
+    )
+    model.model.generation_config.eos_token_id = (
+        datamodule.output_tokenizer.eos_token_id
+    )
 
     log.info(f"Instantiating task <{cfg.task._target_}>")
     task: OfflineBBOTask = hydra.utils.instantiate(cfg.task)
@@ -99,7 +110,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 
-    exit()
+    # exit()
 
     train_metrics = trainer.callback_metrics
 
@@ -125,6 +136,48 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     new_key = k.replace("_orig_mod.", "")
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
+
+        datamodule.setup()
+        model = model.cuda()
+        for batch in datamodule.train_dataloader():
+            for v in batch.values():
+                v = v.cuda()
+            preds = model.generate(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"]
+            )
+            datamodule.output_tokenizer.batch_decode(
+                batch["labels"], skip_special_tokens=True
+            )
+            print(
+                batch,
+                preds,
+            )
+            target_numbers = []
+            for label in batch['labels']:
+                try:
+                    num = float(datamodule.output_tokenizer.decode(
+                        label[label != -100], skip_special_tokens=True
+                    ))
+                    target_numbers.append(num)
+                except ValueError:
+                    target_numbers.append(float("-inf"))
+            target_numbers = torch.tensor(target_numbers, device="cuda")
+            
+            pred_numbers = [] 
+            for pred in preds:
+                try:
+                    num = float(datamodule.output_tokenizer.decode(
+                        pred, skip_special_tokens=True
+                    ))
+                    pred_numbers.append(num)
+                except ValueError:
+                    pred_numbers.append(float("-inf"))
+            pred_numbers = torch.tensor(pred_numbers, device='cuda')
+            for t, p in zip(target_numbers.flatten(), pred_numbers.flatten()):
+                print(t.item(), p.item())
+            # assert 0, (target_numbers, pred_numbers)
+            exit()
 
         log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
         with open(f"./data/{cfg.task.task_name}.metadata", "r") as f:
@@ -181,3 +234,7 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
+
+# universal-offline-bbo/logs/omnipred_test/runs/2025-01-03_20-06-41_seed42/Universal/ednc6tch/checkpoints/epoch=199-step=21400.ckpt
+# logs/omnipred_test/runs/2025-01-03_22-07-17_seed42/Universal/rn1x1r91/checkpoints/test.ckpt
+# logs/omnipred_test/runs/2025-01-04_22-59-00_seed42/Universal/ur6l0g7m/checkpoints/test.ckpt

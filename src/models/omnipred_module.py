@@ -7,7 +7,9 @@ from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 from transformers import T5ForConditionalGeneration
 
 from src.utils import RankedLogger
+
 log = RankedLogger(name=__file__, rank_zero_only=True)
+
 
 class OmnipredModule(LightningModule):
     def __init__(
@@ -15,12 +17,16 @@ class OmnipredModule(LightningModule):
         model: Union[T5ForConditionalGeneration, nn.Module],
         optimizer: torch.optim.Optimizer,
         compile: bool,
-        scheduler = None,
+        input_tokenizer: Any,
+        output_tokenizer: Any,
+        scheduler=None,
     ) -> None:
         super().__init__()
 
         self.save_hyperparameters(logger=False)
         self.model = model
+        self.input_tokenizer = input_tokenizer
+        self.output_tokenizer = output_tokenizer
 
         self.train_rank_corr = SpearmanCorrCoef()
         self.val_rank_corr = SpearmanCorrCoef()
@@ -34,12 +40,17 @@ class OmnipredModule(LightningModule):
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
+        decoder_input_ids: Optional[torch.Tensor] = None,
+        decoder_attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        output = self.model(
-            input_ids=input_ids, attention_mask=attention_mask, labels=labels
+        return self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            decoder_attention_mask=decoder_attention_mask,
+            labels=labels,
         )
-        return output
 
     def on_train_start(self) -> None:
         self.val_loss.reset()
@@ -47,51 +58,107 @@ class OmnipredModule(LightningModule):
         self.val_rank_corr_best.reset()
 
     def model_step(
-        self, batch: Tuple[Dict[str, torch.Tensor]]
+        self, batch: Dict[str, torch.Tensor]
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        preds = self.forward(
+        outputs = self.forward(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],
+            decoder_input_ids=batch["decoder_input_ids"],
+            decoder_attention_mask=batch["decoder_attention_mask"],
             labels=batch["labels"],
         )
-        loss = preds.loss
-        # log.info(f"step loss = {loss.item()}")
-        return loss, preds, batch["labels"]
+
+        loss = outputs.loss
+
+        # predictions = self.generate(
+        #     input_ids=batch["input_ids"],
+        #     attention_mask=batch["attention_mask"],
+        # )
+
+        # pred_numbers = []
+        # for pred in predictions:
+        #     try:
+        #         num = float(
+        #             self.output_tokenizer.decode(pred, skip_special_tokens=True)
+        #         )
+        #         pred_numbers.append(num)
+        #     except ValueError:
+        #         pred_numbers.append(float("-inf"))
+
+        # pred_numbers = torch.tensor(pred_numbers, device=self.device)
+
+        # target_numbers = []
+        # for label in batch["labels"]:
+        #     try:
+        #         num = float(
+        #             self.output_tokenizer.decode(
+        #                 label[label != -100], skip_special_tokens=True
+        #             )
+        #         )
+        #         target_numbers.append(num)
+        #     except ValueError:
+        #         target_numbers.append(float("-inf"))
+
+        # target_numbers = torch.tensor(target_numbers, device=self.device)
+
+        # return loss, pred_numbers, target_numbers
+        return loss, outputs, batch['labels']
 
     def training_step(
-        self, batch: Tuple[Dict[str, torch.Tensor]], batch_idx: int
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
         loss, preds, targets = self.model_step(batch)
 
+        # Update metrics
         self.train_loss(loss)
-        # TODO: calculate primary output for metric calculation
+        # self.train_rank_corr(preds, targets)
+
+        # Log metrics
         self.log(
             "train/loss", self.train_loss, on_step=True, on_epoch=True, prog_bar=True
         )
-    
+        # self.log(
+        #     "train/rank_corr",
+        #     self.train_rank_corr,
+        #     on_step=True,
+        #     on_epoch=True,
+        #     prog_bar=True,
+        # )
+
+        return loss
+
     def on_train_epoch_end(self) -> None:
         pass
 
-    def validation_step(
-        self, batch: Tuple[Dict[str, torch.Tensor]], batch_idx: int
-    ) -> torch.Tensor:
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         loss, preds, targets = self.model_step(batch)
 
+        # Update metrics
         self.val_loss(loss)
-        # TODO: calculate primary output for metric calculation
-        self.log(
-            "val/loss", self.val_loss, on_step=True, on_epoch=True, prog_bar=True
-        )
-    
+        # self.val_rank_corr(preds, targets)
+
+        # Log metrics
+        self.log("val/loss", self.val_loss, on_step=True, on_epoch=True, prog_bar=True)
+        # self.log(
+        #     "val/rank_corr",
+        #     self.val_rank_corr,
+        #     on_step=True,
+        #     on_epoch=True,
+        #     prog_bar=True,
+        # )
+
     def on_validation_epoch_end(self) -> None:
-        pass 
+        pass
+        # rank_corr = self.val_rank_corr.compute()
+        # self.val_rank_corr_best(rank_corr)
+        # self.log("val/rank_corr_best", self.val_rank_corr_best.compute(), prog_bar=True)
 
     def setup(self, stage: str) -> None:
         if self.hparams.compile and stage == "fit":
             self.model = torch.compile(self.model)
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        optimizer = self.hparams.optimizer(params=self.model.parameters())
+        optimizer = self.hparams.optimizer(params=self.parameters())
 
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
@@ -99,9 +166,36 @@ class OmnipredModule(LightningModule):
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
+                    "monitor": "val/loss",
                     "interval": "epoch",
                     "frequency": 1,
                 },
             }
 
-        return optimizer
+        return {"optimizer": optimizer}
+
+    def generate(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        max_length: int = 128,
+        **kwargs
+    ) -> torch.Tensor:
+        generation_kwargs = {
+            "decoder_start_token_id": self.output_tokenizer.bos_token_id,
+            "bos_token_id": self.output_tokenizer.bos_token_id,
+            "pad_token_id": self.output_tokenizer.pad_token_id,
+            "eos_token_id": self.output_tokenizer.eos_token_id,
+            "max_length": max_length,
+            "num_beams": 4,
+            "do_sample": False,
+            "early_stopping": True
+        }
+        
+        generation_kwargs.update(kwargs)
+        
+        return self.model.generate(
+            input_ids=input_ids.to(self.device),
+            attention_mask=attention_mask.to(self.device),
+            **generation_kwargs
+        )

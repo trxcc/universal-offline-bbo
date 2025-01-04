@@ -49,6 +49,12 @@ class OmnipredDataModule(LightningDataModule):
 
         self.batch_size_per_device = batch_size
 
+        # Add these helper properties
+        self.input_pad_token_id = self.input_tokenizer.pad_token_id
+        self.output_pad_token_id = self.output_tokenizer.pad_token_id
+        self.output_bos_token_id = self.output_tokenizer.bos_token_id
+        self.output_eos_token_id = self.output_tokenizer.eos_token_id
+
     def setup(self, stage: Optional[str] = None) -> None:
         # Divide batch size by the number of devices.
         if self.trainer is not None:

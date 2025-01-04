@@ -10,7 +10,10 @@ model:
     d_kv: 32
     d_model: 384
     d_ff: 512
-    # decoder_start_token_id: ${data.output_tokenizer.pad_token_id}
+
+# 添加tokenizer配置
+input_tokenizer: ${data.input_tokenizer}
+output_tokenizer: ${data.output_tokenizer}
 
 optimizer:
   _target_: transformers.optimization.Adafactor

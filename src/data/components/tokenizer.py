@@ -5,13 +5,27 @@ from transformers import PreTrainedTokenizer
 
 
 class P10Tokenizer(PreTrainedTokenizer):
-    def __init__(self, pad_token="[PAD]", unk_token="[UNK]", max_length=128, **kwargs):
+    def __init__(
+        self,
+        pad_token="[PAD]",
+        unk_token="[UNK]",
+        eos_token="</s>",
+        bos_token="<s>",
+        max_length=128,
+        **kwargs,
+    ) -> None:
         self.max_length = max_length
         self.sign_tokens = ["+", "-"]
         self.digit_tokens = [str(i) for i in range(10)]
         self.exp_tokens = [f"E{i}" for i in range(-100, 101)]
 
-        self.special_tokens = [pad_token, unk_token]
+        # Add T5 special tokens
+        self.special_tokens = [
+            pad_token,
+            eos_token,
+            unk_token,
+            bos_token,
+        ]
         self.vocab = (
             self.special_tokens + self.sign_tokens + self.digit_tokens + self.exp_tokens
         )
@@ -19,7 +33,36 @@ class P10Tokenizer(PreTrainedTokenizer):
         self._token_to_id = {token: idx for idx, token in enumerate(self.vocab)}
         self._id_to_token = {idx: token for idx, token in enumerate(self.vocab)}
 
-        super().__init__(pad_token=pad_token, unk_token=unk_token, **kwargs)
+        super().__init__(
+            pad_token=pad_token,
+            unk_token=unk_token,
+            eos_token=eos_token,
+            bos_token=bos_token,
+            **kwargs,
+        )
+
+    @property
+    def bos_token_id(self) -> Optional[int]:
+        """Get the ID of the beginning of sequence token."""
+        return self._token_to_id.get(self.bos_token)
+
+    @property
+    def eos_token_id(self) -> Optional[int]:
+        """Get the ID of the end of sequence token."""
+        return self._token_to_id.get(self.eos_token)
+
+    @property
+    def decoder_start_token_id(self) -> int:
+        """Get the ID of decoder start token (should be bos_token_id for T5)."""
+        return self._token_to_id.get(self.bos_token)
+
+    def build_inputs_with_special_tokens(
+        self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
+    ) -> List[int]:
+        """Build model inputs adding special tokens."""
+        if token_ids_1 is None:
+            return token_ids_0 + [self.eos_token_id]
+        return token_ids_0 + [self.eos_token_id] + token_ids_1 + [self.eos_token_id]
 
     def get_vocab(self) -> Dict[str, int]:
         return self._token_to_id.copy()
@@ -33,7 +76,7 @@ class P10Tokenizer(PreTrainedTokenizer):
             number = float(text)
             if number == 0:
                 tokens = ["+", "0", "E0"]
-                return tokens  # + [self.pad_token] * (self.max_length - len(tokens))
+                return tokens
 
             find_e = "e" in text.lower()
             exp_scientific = (
@@ -55,7 +98,7 @@ class P10Tokenizer(PreTrainedTokenizer):
             return tokens
 
         except ValueError:
-            return [self.unk_token]  # + [self.pad_token] * (self.max_length - 1)
+            return [self.unk_token]
 
     def _convert_token_to_id(self, token: str) -> int:
         return self._token_to_id.get(token, self._token_to_id[self.unk_token])
@@ -64,7 +107,11 @@ class P10Tokenizer(PreTrainedTokenizer):
         return self._id_to_token.get(index, self.unk_token)
 
     def convert_tokens_to_string(self, tokens: List[str]) -> str:
-        tokens = [t for t in tokens if t != self.pad_token]
+        tokens = [
+            t
+            for t in tokens
+            if t not in [self.pad_token, self.bos_token, self.eos_token]
+        ]
         if not tokens or tokens[0] not in ["+", "-"]:
             return self.unk_token
 
@@ -107,9 +154,11 @@ class P10Tokenizer(PreTrainedTokenizer):
                 already_has_special_tokens=True,
             )
 
-        mask = [1 if token in self.special_tokens else 0 for token in token_ids_0]
+        # All special tokens are marked as 1
+        special_tokens_ids = {self._token_to_id[token] for token in self.special_tokens}
+        mask = [1 if token in special_tokens_ids else 0 for token in token_ids_0]
         if token_ids_1 is not None:
-            mask += [1 if token in self.special_tokens else 0 for token in token_ids_1]
+            mask += [1 if token in special_tokens_ids else 0 for token in token_ids_1]
         return mask
 
     def save_vocabulary(
@@ -130,3 +179,15 @@ class P10Tokenizer(PreTrainedTokenizer):
             json.dump(self._token_to_id, f, ensure_ascii=False)
 
         return (vocab_file,)
+
+    def batch_decode(
+        self, sequences: List[List[int]], skip_special_tokens: bool = False, **kwargs
+    ) -> List[str]:
+        decoded = []
+        for seq in sequences:
+            tokens = [self._convert_id_to_token(idx) for idx in seq]
+            if skip_special_tokens:
+                tokens = [t for t in tokens if t not in self.special_tokens]
+            text = self.convert_tokens_to_string(tokens)
+            decoded.append(text)
+        return decoded

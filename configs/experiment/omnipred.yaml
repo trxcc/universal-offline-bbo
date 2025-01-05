@@ -6,7 +6,7 @@
 defaults:
   - override /data: omnipred
   - override /model: omnipred
-  - override /callbacks: none
+  - override /callbacks: default
   - override /trainer: default
   - override /logger: wandb
   - override /task: design_bench

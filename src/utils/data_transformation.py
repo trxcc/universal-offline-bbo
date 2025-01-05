@@ -4,7 +4,42 @@ import numpy as np
 import torch
 from lightning import LightningModule
 
+from src.models.omnipred_module import OmnipredModule
 from src.tasks.base import OfflineBBOTask
+
+
+@torch.no_grad()
+def omnipred_fitness_function_string(
+    x: np.ndarray,
+    m: str,
+    model: OmnipredModule,
+) -> np.ndarray:
+    model = model.to("cuda" if torch.cuda.is_available() else "cpu")
+    assert len(x.shape) == 1 or len(x.shape) == 2
+    if len(x.shape) == 1:
+        x = x.reshape(1, -1)
+
+    batch_size, n_var = x.shape
+    ms = tuple([m for _ in range(batch_size)])
+
+    def sol2str(single_solution):
+        res_str = ", ".join(
+            f"x{i}: {val.item()}" for i, val in enumerate(single_solution)
+        )
+        return res_str
+
+    x_str = [sol2str(x0) for x0 in x]
+    input_str = [f"{x0}. {m0}" for x0, m0 in zip(x_str, ms)]
+    input_tokens = model.input_tokenizer(
+        input_str, padding="max_length", truncation=True, return_tensors="pt"
+    )
+    preds = model.generate_numbers(
+        input_ids=input_tokens["input_ids"],
+        attention_mask=input_tokens["attention_mask"],
+    )
+    preds = preds.cpu().numpy()
+    assert len(preds) == batch_size
+    return preds
 
 
 @torch.no_grad()

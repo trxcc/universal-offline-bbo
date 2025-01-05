@@ -6,9 +6,9 @@ from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 from transformers import T5ForConditionalGeneration
 
-from src.utils import RankedLogger
+# from src.utils import RankedLogger
 
-log = RankedLogger(name=__file__, rank_zero_only=True)
+# log = RankedLogger(name=__file__, rank_zero_only=True)
 
 
 class OmnipredModule(LightningModule):
@@ -69,40 +69,7 @@ class OmnipredModule(LightningModule):
         )
 
         loss = outputs.loss
-
-        # predictions = self.generate(
-        #     input_ids=batch["input_ids"],
-        #     attention_mask=batch["attention_mask"],
-        # )
-
-        # pred_numbers = []
-        # for pred in predictions:
-        #     try:
-        #         num = float(
-        #             self.output_tokenizer.decode(pred, skip_special_tokens=True)
-        #         )
-        #         pred_numbers.append(num)
-        #     except ValueError:
-        #         pred_numbers.append(float("-inf"))
-
-        # pred_numbers = torch.tensor(pred_numbers, device=self.device)
-
-        # target_numbers = []
-        # for label in batch["labels"]:
-        #     try:
-        #         num = float(
-        #             self.output_tokenizer.decode(
-        #                 label[label != -100], skip_special_tokens=True
-        #             )
-        #         )
-        #         target_numbers.append(num)
-        #     except ValueError:
-        #         target_numbers.append(float("-inf"))
-
-        # target_numbers = torch.tensor(target_numbers, device=self.device)
-
-        # return loss, pred_numbers, target_numbers
-        return loss, outputs, batch['labels']
+        return loss, outputs, batch["labels"]
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -159,16 +126,15 @@ class OmnipredModule(LightningModule):
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer = self.hparams.optimizer(params=self.parameters())
-        
+
         if self.hparams.scheduler is not None:
             # Calculate total steps
             total_steps = self.trainer.estimated_stepping_batches
-            
+
             scheduler = self.hparams.scheduler(
-                optimizer=optimizer,
-                num_training_steps=total_steps
+                optimizer=optimizer, num_training_steps=total_steps
             )
-            
+
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {
@@ -195,13 +161,42 @@ class OmnipredModule(LightningModule):
             "max_length": max_length,
             "num_beams": 4,
             "do_sample": False,
-            "early_stopping": True
+            "early_stopping": True,
         }
-        
+
         generation_kwargs.update(kwargs)
-        
+
         return self.model.generate(
             input_ids=input_ids.to(self.device),
             attention_mask=attention_mask.to(self.device),
             **generation_kwargs
         )
+
+    def generate_numbers(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        max_length: int = 128,
+        **kwargs
+    ):
+        predictions = self.generate(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            max_length=max_length,
+            **kwargs
+        )
+
+        pred_numbers = []
+        for pred in predictions:
+            try:
+                num = float(
+                    self.output_tokenizer.decode(
+                        pred[pred != -100], skip_special_tokens=True
+                    )
+                )
+                pred_numbers.append(num)
+            except ValueError:
+                pred_numbers.append(float("-inf"))
+
+        # Return a two-dimensional vector
+        return torch.tensor(pred_numbers, device=self.device).reshape(-1, 1)

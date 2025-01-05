@@ -11,16 +11,30 @@ model:
     d_model: 384
     d_ff: 512
 
-# 添加tokenizer配置
 input_tokenizer: ${data.input_tokenizer}
 output_tokenizer: ${data.output_tokenizer}
 
+# optimizer:
+#   _target_: transformers.optimization.Adafactor
+#   _partial_: true
+#   lr: 0.01
+#   decay_rate: -0.5
+#   scale_parameter: true
+#   relative_step: false
+
 optimizer:
-  _target_: transformers.optimization.Adafactor
+  _target_: torch.optim.AdamW
   _partial_: true
-  lr: 0.01
-  decay_rate: -0.5
-  scale_parameter: true
-  relative_step: false
+  lr: 1e-4
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+  eps: 1e-8
+
+scheduler:
+  _target_: transformers.get_scheduler
+  _partial_: true
+  name: "cosine"
+  num_warmup_steps: 100
+  num_training_steps: ${trainer.max_epochs} 
 
 compile: true

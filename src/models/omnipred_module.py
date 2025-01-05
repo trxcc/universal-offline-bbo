@@ -159,15 +159,21 @@ class OmnipredModule(LightningModule):
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer = self.hparams.optimizer(params=self.parameters())
-
+        
         if self.hparams.scheduler is not None:
-            scheduler = self.hparams.scheduler(optimizer=optimizer)
+            # Calculate total steps
+            total_steps = self.trainer.estimated_stepping_batches
+            
+            scheduler = self.hparams.scheduler(
+                optimizer=optimizer,
+                num_training_steps=total_steps
+            )
+            
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
-                    "monitor": "val/loss",
-                    "interval": "epoch",
+                    "interval": "step",  # Update lr every step instead of epoch
                     "frequency": 1,
                 },
             }

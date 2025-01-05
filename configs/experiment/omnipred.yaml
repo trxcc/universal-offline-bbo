@@ -19,8 +19,8 @@ tags: ["universal", "omnipred", "test"]
 seed: 42
 
 data:
-  # task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
-  task_names: Superconductor-RandomForest-v0
+  task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  # task_names: Superconductor-RandomForest-v0
   batch_size: 128
 
 trainer:
@@ -31,11 +31,11 @@ trainer:
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: omnipred_test
+task_name: omnipred
 
 logger:
   wandb:
     tags: ${tags}
     project: "Universal"
-    group: "omnipred_test"
+    group: "omnipred"
     job_type: "train"

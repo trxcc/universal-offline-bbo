@@ -2,13 +2,10 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 from transformers import T5ForConditionalGeneration
-
-# from src.utils import RankedLogger
-
-# log = RankedLogger(name=__file__, rank_zero_only=True)
 
 
 class OmnipredModule(LightningModule):
@@ -19,6 +16,7 @@ class OmnipredModule(LightningModule):
         compile: bool,
         input_tokenizer: Any,
         output_tokenizer: Any,
+        numeric_interval: int = 50,
         scheduler=None,
     ) -> None:
         super().__init__()
@@ -35,6 +33,14 @@ class OmnipredModule(LightningModule):
         self.val_loss = MeanMetric()
 
         self.val_rank_corr_best = MaxMetric()
+
+        self.train_numeric_mse = MeanMetric()
+        self.train_numeric_rank_corr = SpearmanCorrCoef()
+        self.val_numeric_mse = MeanMetric()
+        self.val_numeric_rank_corr = SpearmanCorrCoef()
+
+        self.last_numeric_epoch = -1
+        self.numeric_interval = 50
 
     def forward(
         self,
@@ -78,47 +84,39 @@ class OmnipredModule(LightningModule):
 
         # Update metrics
         self.train_loss(loss)
-        # self.train_rank_corr(preds, targets)
 
         # Log metrics
         self.log(
             "train/loss", self.train_loss, on_step=True, on_epoch=True, prog_bar=True
         )
-        # self.log(
-        #     "train/rank_corr",
-        #     self.train_rank_corr,
-        #     on_step=True,
-        #     on_epoch=True,
-        #     prog_bar=True,
-        # )
 
         return loss
 
     def on_train_epoch_end(self) -> None:
-        pass
+        if (self.current_epoch - self.last_numeric_epoch) >= self.numeric_interval:
+            self.last_numeric_epoch = self.current_epoch
+            
+            self.compute_numeric_metrics(
+                self.trainer.train_dataloader,
+                prefix="train"
+            )
+            
+            self.compute_numeric_metrics(
+                self.trainer.val_dataloaders,
+                prefix="val"
+            )
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         loss, preds, targets = self.model_step(batch)
 
         # Update metrics
         self.val_loss(loss)
-        # self.val_rank_corr(preds, targets)
 
         # Log metrics
         self.log("val/loss", self.val_loss, on_step=True, on_epoch=True, prog_bar=True)
-        # self.log(
-        #     "val/rank_corr",
-        #     self.val_rank_corr,
-        #     on_step=True,
-        #     on_epoch=True,
-        #     prog_bar=True,
-        # )
 
     def on_validation_epoch_end(self) -> None:
         pass
-        # rank_corr = self.val_rank_corr.compute()
-        # self.val_rank_corr_best(rank_corr)
-        # self.log("val/rank_corr_best", self.val_rank_corr_best.compute(), prog_bar=True)
 
     def setup(self, stage: str) -> None:
         if self.hparams.compile and stage == "fit":
@@ -200,3 +198,58 @@ class OmnipredModule(LightningModule):
 
         # Return a two-dimensional vector
         return torch.tensor(pred_numbers, device=self.device).reshape(-1, 1)
+
+    def compute_numeric_metrics(self, dataloader, prefix="val"):
+        self.eval()
+        numeric_mse = MeanMetric().to(self.device)
+        numeric_rank_corr = SpearmanCorrCoef().to(self.device)
+        
+        all_preds = []
+        all_targets = []
+        
+        with torch.no_grad():
+            for batch in dataloader:
+                input_ids = batch["input_ids"].to(self.device)
+                attention_mask = batch["attention_mask"].to(self.device)
+                labels = batch["labels"].to(self.device)
+                
+                pred_numbers = self.generate_numbers(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask
+                )
+
+                target_numbers = []
+                for label in labels:
+                    try:
+                        num = float(
+                            self.output_tokenizer.decode(
+                                label[label != -100], skip_special_tokens=True
+                            )
+                        )
+                        target_numbers.append(num)
+                    except ValueError:
+                        target_numbers.append(float("-inf"))
+                
+                target_numbers = torch.tensor(target_numbers, device=self.device).reshape(-1, 1)
+                
+                numeric_mse(F.mse_loss(pred_numbers.squeeze(), target_numbers.squeeze()))
+                numeric_rank_corr(pred_numbers.squeeze(), target_numbers.squeeze())
+                
+                all_preds.extend(pred_numbers.cpu().numpy())
+                all_targets.extend(target_numbers.cpu().numpy())
+        
+        self.log(
+            f"{prefix}/numeric_mse",
+            numeric_mse.compute(),
+            on_epoch=True,
+            prog_bar=True
+        )
+        self.log(
+            f"{prefix}/numeric_rank_corr", 
+            numeric_rank_corr.compute(),
+            on_epoch=True,
+            prog_bar=True
+        )
+        
+        self.train()
+        return all_preds, all_targets

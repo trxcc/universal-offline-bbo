@@ -48,7 +48,7 @@ pip install robel==0.1.2 morphing_agents==1.5.1 transforms3d --no-dependencies
 pip install botorch==0.8.5 gpytorch==1.10
 
 # Install other dependencies
-pip install gym==0.13.1 params_proto==2.9.6 scikit-image==0.17.2 scikit-video==1.1.11 scikit-learn==0.23.1 wandb pypop7
+pip install gym==0.13.1 params_proto==2.9.6 scikit-image==0.17.2 scikit-video==1.1.11 scikit-learn==0.23.1 wandb pypop7 pymoo==0.6.1.2
 
 # Fix numpy version, otherwise it would raise environment error
 pip install numpy==1.22.0
@@ -58,6 +58,9 @@ pip install lightning==2.3.3 hydra-core==1.3.2 hydra-colorlog==1.2.0 hydra-optun
 
 # Install sentence-transformer
 pip install -U sentence-transformers
+
+# Install sentence-piece
+pip install -U sentencepiece
 
 # Install other utils packages
 pip install rootutils pre-commit rich pytest isort black
@@ -70,7 +73,10 @@ To check the stability of installation, you can run test demos in ``demo/`` by
 python tests/test_design_bench.py
 python tests/test_sentence_transformer.py
 python tests/test_pypop.py
+python tests/test_t5.py
+python tests/test_tokenizer.py
 ```
 
 ## Code Reference
 + For pretrained embedder, we use [sentence-transformers](https://github.com/UKPLab/sentence-transformers).
++ For language model, we use [Google T5](https://huggingface.co/docs/transformers/model_doc/t5).

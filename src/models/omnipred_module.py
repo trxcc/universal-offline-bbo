@@ -95,16 +95,10 @@ class OmnipredModule(LightningModule):
     def on_train_epoch_end(self) -> None:
         if (self.current_epoch - self.last_numeric_epoch) >= self.numeric_interval:
             self.last_numeric_epoch = self.current_epoch
-            
-            self.compute_numeric_metrics(
-                self.trainer.train_dataloader,
-                prefix="train"
-            )
-            
-            self.compute_numeric_metrics(
-                self.trainer.val_dataloaders,
-                prefix="val"
-            )
+
+            self.compute_numeric_metrics(self.trainer.train_dataloader, prefix="train")
+
+            self.compute_numeric_metrics(self.trainer.val_dataloaders, prefix="val")
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         loss, preds, targets = self.model_step(batch)
@@ -149,7 +143,7 @@ class OmnipredModule(LightningModule):
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         max_length: int = 128,
-        **kwargs
+        **kwargs,
     ) -> torch.Tensor:
         generation_kwargs = {
             "decoder_start_token_id": self.output_tokenizer.bos_token_id,
@@ -167,7 +161,7 @@ class OmnipredModule(LightningModule):
         return self.model.generate(
             input_ids=input_ids.to(self.device),
             attention_mask=attention_mask.to(self.device),
-            **generation_kwargs
+            **generation_kwargs,
         )
 
     def generate_numbers(
@@ -175,13 +169,13 @@ class OmnipredModule(LightningModule):
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         max_length: int = 128,
-        **kwargs
+        **kwargs,
     ):
         predictions = self.generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
             max_length=max_length,
-            **kwargs
+            **kwargs,
         )
 
         pred_numbers = []
@@ -203,19 +197,18 @@ class OmnipredModule(LightningModule):
         self.eval()
         numeric_mse = MeanMetric().to(self.device)
         numeric_rank_corr = SpearmanCorrCoef().to(self.device)
-        
+
         all_preds = []
         all_targets = []
-        
+
         with torch.no_grad():
             for batch in dataloader:
                 input_ids = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
                 labels = batch["labels"].to(self.device)
-                
+
                 pred_numbers = self.generate_numbers(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask
+                    input_ids=input_ids, attention_mask=attention_mask
                 )
 
                 target_numbers = []
@@ -229,27 +222,28 @@ class OmnipredModule(LightningModule):
                         target_numbers.append(num)
                     except ValueError:
                         target_numbers.append(float("-inf"))
-                
-                target_numbers = torch.tensor(target_numbers, device=self.device).reshape(-1, 1)
-                
-                numeric_mse(F.mse_loss(pred_numbers.squeeze(), target_numbers.squeeze()))
+
+                target_numbers = torch.tensor(
+                    target_numbers, device=self.device
+                ).reshape(-1, 1)
+
+                numeric_mse(
+                    F.mse_loss(pred_numbers.squeeze(), target_numbers.squeeze())
+                )
                 numeric_rank_corr(pred_numbers.squeeze(), target_numbers.squeeze())
-                
+
                 all_preds.extend(pred_numbers.cpu().numpy())
                 all_targets.extend(target_numbers.cpu().numpy())
-        
+
         self.log(
-            f"{prefix}/numeric_mse",
-            numeric_mse.compute(),
-            on_epoch=True,
-            prog_bar=True
+            f"{prefix}/numeric_mse", numeric_mse.compute(), on_epoch=True, prog_bar=True
         )
         self.log(
-            f"{prefix}/numeric_rank_corr", 
+            f"{prefix}/numeric_rank_corr",
             numeric_rank_corr.compute(),
             on_epoch=True,
-            prog_bar=True
+            prog_bar=True,
         )
-        
+
         self.train()
         return all_preds, all_targets

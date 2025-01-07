@@ -6,6 +6,9 @@ from design_bench.datasets.continuous.ant_morphology_dataset import AntMorpholog
 from design_bench.datasets.continuous.dkitty_morphology_dataset import (
     DKittyMorphologyDataset,
 )
+from design_bench.datasets.continuous.hopper_controller_dataset import (
+    HopperControllerDataset,
+)
 from design_bench.datasets.continuous.superconductor_dataset import (
     SuperconductorDataset,
 )
@@ -32,6 +35,7 @@ _taskname2datafunc = {
     "TFBind8-Exact-v0": lambda: TFBind8Dataset(),
     "TFBind10-Exact-v0": lambda: TFBind10Dataset(),
     "CIFARNAS-Exact-v0": lambda: NASBenchDataset(),
+    "HopperController-Exact-v0": lambda: HopperControllerDataset(),
 }
 
 
@@ -73,7 +77,7 @@ class DesignBenchTask(OfflineBBOTask):
 
     def __init__(self, task_name: str, scale_up_ratio: float = 1.0) -> None:
         self.task: Task = db.make(task_name, **_task_kwargs.get(task_name, {}))
-        dic2y = np.load("src/tasks/dic2y.npy", allow_pickle=True).item()
+        dic2y = np.load("src/tasks/dic2y_db.npy", allow_pickle=True).item()
         full_y_min, full_y_max = dic2y[task_name]
 
         task_x, task_y = self.task.x.copy(), self.task.y.copy()

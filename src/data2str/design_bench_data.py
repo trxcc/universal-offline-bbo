@@ -15,12 +15,16 @@ TASKNAMES = [
     "Superconductor-RandomForest-v0",
     "TFBind8-Exact-v0",
     "TFBind10-Exact-v0",
+    # Below are tasks that are not usually used in Design-Bench
+    "HopperController-Exact-v0",
 ]
 
 CONTINUOUS_TASKS = [
     "AntMorphology-Exact-v0",
     "DKittyMorphology-Exact-v0",
     "Superconductor-RandomForest-v0",
+    # Below are tasks that are not usually used in Design-Bench
+    "HopperController-Exact-v0",
 ]
 
 CATEGORICAL_TASKS = [
@@ -53,6 +57,12 @@ TEXT_DESCRIPTIONS = {
         "name": "TF Bind 10",
         "description": "DNA sequence optimization",
         "objective": "to find the length-10 DNA sequence with maximum binding affinity with SIX6_REF_R1 transcription factor",
+    },
+    # Below are tasks that are not usually used in Design-Bench
+    "HopperController-Exact-v0": {
+        "name": "Hopper Controller",
+        "description": "Hopper robot neural network controller optimization",
+        "objective": "to optimize the weights of a neural network policy so as to maximize the expected discounted return on the Hopper-v2 locomotion task in OpenAI Gym",
     },
 }
 

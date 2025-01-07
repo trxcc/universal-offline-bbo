@@ -30,6 +30,7 @@ class EmbedRegressorModule(LightningModule):
         metadata_projector: Optional[nn.Module] = None,
         metadata_projector_output_dim: Optional[int] = None,
         metadata_embedder_optimizer: Optional[torch.optim.Optimizer] = None,
+        cat_metadata: Optional[bool] = False,
     ) -> None:
         super().__init__()
 
@@ -41,6 +42,7 @@ class EmbedRegressorModule(LightningModule):
         self.embedder = embedder
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
+        self.cat_metadata = cat_metadata
 
         self.has_metadata = (
             (metadata_embedder is not None)
@@ -97,6 +99,8 @@ class EmbedRegressorModule(LightningModule):
         return emb_m
 
     def forward(self, x: Tuple[str], m: Tuple[str]) -> torch.Tensor:
+        if self.cat_metadata:
+            x = [f"{x}. {m}" for m, x in zip(m, x)]
         encoded_input = self.tokenizer(
             x,
             max_length=self.hparams.tokenizer_max_length,

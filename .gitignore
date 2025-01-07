@@ -157,3 +157,5 @@ configs/local/default.yaml
 
 # Mac
 **/DS_Store
+
+/thirdparty_benchmark/

@@ -28,11 +28,11 @@ trainer:
 
 model:
   tokenizer_max_length: 400
-  cat_metadata: True
+  cat_metadata: true
 
   regressor:
     input_dim: 384
-  
+  from_pretrained: true
 
 task:
   task_name: Superconductor-RandomForest-v0

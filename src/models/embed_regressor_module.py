@@ -31,10 +31,21 @@ class EmbedRegressorModule(LightningModule):
         metadata_projector_output_dim: Optional[int] = None,
         metadata_embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         cat_metadata: Optional[bool] = False,
+        from_pretrained: Optional[bool] = True,
     ) -> None:
         super().__init__()
 
         self.save_hyperparameters(logger=False)
+
+        if not from_pretrained:
+
+            def init_weights(m):
+                if isinstance(m, (nn.Linear, nn.Embedding)):
+                    nn.init.trunc_normal_(m.weight, std=0.02, a=-0.04, b=0.04)
+                    if hasattr(m, "bias") and m.bias is not None:
+                        nn.init.zeros_(m.bias)
+
+            embedder.apply(init_weights)
 
         self.automatic_optimization = False
 

@@ -28,21 +28,23 @@ class BBOBTask(OfflineBBOTask):
         assert task_name in self._name2func.keys()
         self.data = load_mcts_transfer_data(data_dir, "bbob")[task_name]
 
-        seed2md = {}
+        self.seed2md = {}
         for dataset_id, dataset in self.data.items():
             collect_algo, collect_seed, eval_seed = tuple(dataset_id.split("+"))
-            seed2md[eval(eval_seed)] = {
-                "metadata": f"Collect algorithm: {collect_algo}. "
-                f"Random seed during collection: {collect_seed}",
+            self.seed2md[eval(eval_seed)] = {
+                "metadata": f"Collect algorithm: {collect_algo}, "
+                f"with random seed = {collect_seed}. ",
                 "X": np.array(dataset["X"]),
                 "y": np.array(dataset["y"]),
             }
 
         func_type = self._name2func[task_name]()
-        self.eval_function = lambda x: func_type(x, seed=func_seed) * (-1) # since BBOB function is minimization
+        self.eval_function = lambda x: func_type(x, seed=func_seed) * (
+            -1
+        )  # since BBOB function is minimization
         # Besides, the data provide in mcts-transfer is maximizing
 
-        self.seed_in_data = func_seed in seed2md.keys()
+        self.seed_in_data = func_seed in self.seed2md.keys()
         if not self.seed_in_data:
             warnings.warn(
                 f"Not support function seed in {task_name}. "
@@ -55,8 +57,8 @@ class BBOBTask(OfflineBBOTask):
             )
             task_y = np.zeros(shape=(data_size, 1))
         else:
-            task_x = seed2md[func_seed]["X"]
-            task_y = seed2md[func_seed]["y"]
+            task_x = self.seed2md[func_seed]["X"]
+            task_y = self.seed2md[func_seed]["y"]
 
         self.task_type = "Continuous"
 
@@ -67,7 +69,7 @@ class BBOBTask(OfflineBBOTask):
             full_y_min=np.min(task_y) if self.seed_in_data else 0,
             full_y_max=np.max(task_y) if self.seed_in_data else 1,
         )
-    
+
     def evaluate(
         self, x: np.ndarray, return_normalized_y: bool = True
     ) -> Dict[str, np.ndarray]:
@@ -94,15 +96,17 @@ class BBOBTask(OfflineBBOTask):
                 f"{prefix}score/50th": np.median(score).item(),
                 f"{prefix}score/25th": np.percentile(score, 25).item(),
             }
-        
+
         x = x.reshape(-1, self.x_np.shape[1])
         score = self.eval_function(x)
         score_dict = get_percentile_score(score)
 
         if return_normalized_y:
             if not self.seed_in_data:
-                warnings.warn(f"Not support function seed in {self.task_name}. "
-                              "Only return unnormalized y.")
+                warnings.warn(
+                    f"Not support function seed in {self.task_name}. "
+                    "Only return unnormalized y."
+                )
                 return score_dict
 
             normalized_score = (score - self.full_y_min) / (
@@ -124,5 +128,4 @@ class BBOBTask(OfflineBBOTask):
 
     @property
     def num_classes(self) -> int:
-        raise ValueError('BBOB tasks do not support categorical inputs')
-    
+        raise ValueError("BBOB tasks do not support categorical inputs")

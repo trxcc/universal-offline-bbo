@@ -203,7 +203,7 @@ class EmbedRegressorModule(LightningModule):
         self.log(
             "train/loss",
             self.train_loss,
-            on_step=False,
+            on_step=True,
             on_epoch=True,
             prog_bar=True,
             metric_attribute="train_loss",
@@ -350,7 +350,7 @@ class EmbedRegressorModule(LightningModule):
 
         all_corrs = []
         for task_name in self.task_names:
-            if task_preds[task_name]:  # 如果有数据
+            if task_preds[task_name]:
                 task_pred = torch.stack(task_preds[task_name])
                 task_target = torch.stack(task_targets[task_name])
                 rank_corr = compute_rank_corr[task_name](task_pred, task_target)

@@ -1,0 +1,39 @@
+_target_: src.models.embed_regressor_module.EmbedRegressorModule
+
+tokenizer:
+  _target_: transformers.AutoTokenizer.from_pretrained
+  pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
+  
+embedder: 
+  _target_: transformers.AutoModel.from_pretrained
+  pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
+embedder_output_dim: 384
+
+regressor:
+  _target_: src.models.components.mlp.SimpleMLP
+  input_dim: 384
+  hidden_dim: [2048, 2048]
+  output_dim: 1
+
+regressor_optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.0003
+  weight_decay: 0.00001
+
+scheduler: 
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  _partial_: true
+  eta_min: 0
+  T_max: ${trainer.max_epochs}
+
+compile: true
+
+embedder_optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true 
+  lr: 0.00002
+  weight_decay: 0.00001
+
+task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  

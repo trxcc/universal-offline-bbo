@@ -3,12 +3,16 @@ from __future__ import annotations
 """Experimenter function implementations for BBOB functions.
 
     Reference:
-    [1] Wang S, Xue K, Song L, Huang X, Qian C. Monte Carlo tree search based
+    [1] Hansen N, Finck S, Ros R, Auger A. Real-parameter black-box optimization 
+        benchmarking 2009: Noiseless functions definitions Technical Report, INRIA, 2009.
+        https://inria.hal.science/inria-00362633/document
+
+    [2] Wang S, Xue K, Song L, Huang X, Qian C. Monte Carlo tree search based
         space transfer for black-box optimization. In NeurIPS 2024. 
         https://arxiv.org/pdf/2412.07186. 
         Code reference: https://github.com/lamda-bbo/mcts-transfer/blob/main/functions/bbob/bbob.py
     
-    [2] Golovin D, Solnik B, Moitra S, Kochanski G, Karro J, Sculley D. Google
+    [3] Golovin D, Solnik B, Moitra S, Kochanski G, Karro J, Sculley D. Google
         vizier: A service for black-box optimization. In SIGKDD 2017.
         https://dl.acm.org/doi/pdf/10.1145/3097983.3098043.
         Code reference: https://github.com/google/vizier/blob/e4b0842bdea8fb2f36d283c40d2d71fd1087b7b3/vizier/_src/benchmarks/experimenters/synthetic/bbob.py

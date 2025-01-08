@@ -21,11 +21,16 @@ regressor_optimizer:
   lr: 0.0003
   weight_decay: 0.00001
 
+# scheduler: 
+#   _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+#   _partial_: true
+#   eta_min: 0
+#   T_max: ${trainer.max_epochs}
 scheduler: 
-  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  _target_: transformers.get_linear_schedule_with_warmup
   _partial_: true
-  eta_min: 0
-  T_max: ${trainer.max_epochs}
+  num_warmup_steps: 1000
+  num_training_steps: ${trainer.max_epochs}
 
 compile: true
 

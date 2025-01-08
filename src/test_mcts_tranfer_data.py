@@ -10,7 +10,7 @@ data_dir = root / "data" / "mcts_transfer_data"
 
 assert os.path.exists(data_dir)
 
-with open(data_dir / "real_world" / "meta_dataset.json", "r") as f:
+with open(data_dir / "hpob-data" / "meta-train-dataset.json", "r") as f:
     data = json.load(f)
     X_all = []
     y_all = []

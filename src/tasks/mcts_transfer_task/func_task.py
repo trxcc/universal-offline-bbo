@@ -12,6 +12,7 @@ from src.tasks.mcts_transfer_task.functions.bbob import (
     RosenbrockRotated,
     SharpRidge,
 )
+from src.tasks.mcts_transfer_task.functions.hpob import HPOBProblem
 from src.tasks.mcts_transfer_task.functions.real_world_problems import RealWorldProblem
 from src.tasks.mcts_transfer_task.utils import load_mcts_transfer_data
 
@@ -231,6 +232,128 @@ class RealWorldTask(OfflineBBOTask):
 
         if return_normalized_y:
             if not self.seed_in_data:
+                warnings.warn(
+                    f"Not support function seed in {self.task_name}. "
+                    "Only return unnormalized y."
+                )
+                return score_dict
+
+            normalized_score = (score - self.full_y_min) / (
+                self.full_y_max - self.full_y_min
+            )
+            score_dict.update(
+                get_percentile_score(normalized_score, prefix="normalized")
+            )
+
+        return score_dict
+
+    @property
+    def bounds(self) -> Tuple[np.ndarray, np.ndarray]:
+        return np.zeros(self.ndim_problem), np.ones(self.ndim_problem)
+
+    @property
+    def ndim_problem(self) -> int:
+        return self.dim
+
+    @property
+    def num_classes(self) -> int:
+        raise ValueError("Real world tasks do not support categorical inputs")
+
+
+class HPOBTask(OfflineBBOTask):
+    _id2dim = {
+        "5860": 2,
+        "5970": 2,
+        "5859": 6,
+        "5889": 6,
+        "7607": 9,
+        "7609": 9,
+        "5906": 16,
+        "5971": 16,
+    }
+
+    def __init__(
+        self,
+        task_name: str,
+        dataset_id: str,
+        root_dir: Path,
+        data_dir: Path,
+    ) -> None:
+        search_space_id = task_name.split("_")[1]
+        assert search_space_id in self._id2dim.keys()
+        self.dim = self._id2dim[search_space_id]
+
+        self.data = load_mcts_transfer_data(data_dir, "hpob-data")[search_space_id]
+        self.did2md = {}
+        for did, dataset in self.data.items():
+            self.did2md[did] = {
+                "metadata": f"HPOB algorithm {search_space_id} on dataset {did}",
+                "X": np.array(dataset["X"]),
+                "y": np.array(dataset["y"]).squeeze(),
+            }
+
+        func_type = HPOBProblem(search_space_id, dataset_id, root_dir)
+        self.eval_function = lambda x: func_type(x)
+
+        self.did_in_data = dataset_id in self.did2md.keys()
+        if not self.did_in_data:
+            warnings.warn(
+                f"Not support function dataset id in {task_name}. "
+                "The search procedure will initialize with random designs. "
+            )
+            data_size = list(self.data.values())[0]["X"].shape[0]
+            lower_bound, upper_bound = self.bound
+            task_x = lower_bound + (upper_bound - lower_bound) * np.random.random(
+                (data_size, self.ndim_problem)
+            )
+            task_y = np.zeros(shape=(data_size, 1))
+        else:
+            task_x = self.did2md[dataset_id]["X"]
+            task_y = self.did2md[dataset_id]["y"]
+
+        self.task_type = "Continuous"
+
+        super(HPOBTask, self).__init__(
+            f"HPOB_{search_space_id}",
+            x_np=task_x,
+            y_np=task_y,
+            full_y_min=np.min(task_y) if self.did_in_data else 0,
+            full_y_max=np.max(task_y) if self.did_in_data else 1,
+        )
+
+    def evaluate(
+        self, x: np.ndarray, return_normalized_y: bool = True
+    ) -> Dict[str, np.ndarray]:
+        if self.task_type == "Continuous":
+            assert x.dtype in [
+                np.float32,
+                np.float64,
+            ], f"Input dtype must be float32 or float64, but got {x.dtype}"
+        elif self.task_type == "Categorical":
+            assert x.dtype in [
+                np.int32,
+                np.int64,
+            ], f"Input dtype must be int32 or int64, but got {x.dtype}"
+        else:
+            raise NotImplementedError
+
+        def get_percentile_score(
+            score: np.ndarray, prefix: str = ""
+        ) -> Dict[str, float]:
+            prefix = f"{prefix}/" if prefix != "" else prefix
+            return {
+                f"{prefix}score/100th": np.max(score).item(),
+                f"{prefix}score/75th": np.percentile(score, 75).item(),
+                f"{prefix}score/50th": np.median(score).item(),
+                f"{prefix}score/25th": np.percentile(score, 25).item(),
+            }
+
+        x = x.reshape(-1, self.x_np.shape[1])
+        score = self.eval_function(x)
+        score_dict = get_percentile_score(score)
+
+        if return_normalized_y:
+            if not self.did_in_data:
                 warnings.warn(
                     f"Not support function seed in {self.task_name}. "
                     "Only return unnormalized y."

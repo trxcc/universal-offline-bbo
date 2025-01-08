@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: string_xy
-  - override /model: embed_regress_nopretrain
+  - override /model: embed_regress_bpe
   - override /callbacks: default
   - override /trainer: default
   - override /logger: wandb

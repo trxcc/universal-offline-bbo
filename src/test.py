@@ -30,7 +30,7 @@ root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True
 from src.searcher.cde import CDESearcher
 from src.searcher.ga import GASearcher
 from src.searcher.pso import PSOSearcher
-from src.tasks.mcts_transfer_task.func_task import BBOBTask, RealWorldTask
+from src.tasks.mcts_transfer_task.func_task import BBOBTask, HPOBTask, RealWorldTask
 
 # task = DesignBenchTask("Superconductor-RandomForest-v0")
 # from src.tasks.soo_bench_task import SOOBenchTask
@@ -39,7 +39,10 @@ from src.tasks.mcts_transfer_task.func_task import BBOBTask, RealWorldTask
 
 # task = SOOBenchTask("gtopx_data", 2, 1, low=0, high=100, num_data=10000)
 # task = BBOBTask(task_name="GriewankRosenbrock", func_seed=0, data_dir=root / "data")
-task = RealWorldTask("Rover", root / "data", 150, reevaluate=False)
+# task = RealWorldTask("Rover", root / "data", 150, reevaluate=False)
+task = HPOBTask(
+    f"HPOB_5889", dataset_id="31", root_dir=root / "data", data_dir=root / "data"
+)
 ndim_problem = task.x_np.shape[1]
 lb = task.x_np.min(axis=0)
 ub = task.x_np.max(axis=0)

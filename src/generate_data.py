@@ -7,7 +7,7 @@ root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True
 
 from src.data2str.design_bench_data import TASKNAMES as TASKNAMES_DB
 from src.data2str.design_bench_data import create_task as create_task_db
-from src.data2str.mcts_transfer_data import create_task_bbob, create_task_real_world
+from src.data2str.mcts_transfer_data import create_task_bbob, create_task_real_world, create_task_hpob
 from src.data2str.soo_bench_data import TASKNAMES as TASKNAMES_SB
 from src.data2str.soo_bench_data import create_task as create_task_sb
 from src.tasks.mcts_transfer_task.utils import load_mcts_transfer_data
@@ -56,43 +56,67 @@ os.makedirs(data_dir, exist_ok=True)
 #     with open(metadata_file, "w") as f:
 #         f.write(metadata.to_string())
 
-# Generate BBOB data from MCTS-Transfer paper
-data_dict = load_mcts_transfer_data(data_dir, "bbob")
+# # Generate BBOB data from MCTS-Transfer paper
+# data_dict = load_mcts_transfer_data(data_dir, "bbob")
+# for search_space_id, search_space_data in data_dict.items():
+#     # Read function seeds
+#     search_space_seeds = []
+#     for dataset_id in search_space_data.keys():
+#         search_space_seeds.append(eval(dataset_id.split("+")[2]))
+
+#     for seed in search_space_seeds:
+#         task, metadata, data = create_task_bbob(search_space_id, data_dir, seed)
+#         task_desc = f"{search_space_id}_{seed}"
+
+#         task_data = []
+#         for x, y in zip(data.to_string(), task.y_np):
+#             task_data.append({"x": x, "y": y.item()})
+
+#         output_file = f"{data_dir}/{task_desc}.json"
+#         with open(output_file, "w") as f:
+#             json.dump(task_data, f, indent=2)
+
+#         metadata_file = f"{data_dir}/{task_desc}.metadata"
+#         with open(metadata_file, "w") as f:
+#             f.write(metadata.to_string())
+
+# # Generate real_world data from MCTS-Transfer paper
+# data_dict = load_mcts_transfer_data(data_dir, "real_world")
+# for search_space_id, search_space_data in data_dict.items():
+#     # Read function seeds
+#     search_space_seeds = []
+#     for dataset_id in search_space_data.keys():
+#         seed = eval(dataset_id.split("+")[2])
+#         if seed not in search_space_seeds:
+#             search_space_seeds.append(seed)
+
+#     for seed in search_space_seeds:
+#         task, metadata, data = create_task_real_world(search_space_id, data_dir, seed)
+#         task_desc = f"{search_space_id}_{seed}"
+
+#         task_data = []
+#         for x, y in zip(data.to_string(), task.y_np):
+#             task_data.append({"x": x, "y": y.item()})
+
+#         output_file = f"{data_dir}/{task_desc}.json"
+#         with open(output_file, "w") as f:
+#             json.dump(task_data, f, indent=2)
+
+#         metadata_file = f"{data_dir}/{task_desc}.metadata"
+#         with open(metadata_file, "w") as f:
+#             f.write(metadata.to_string())
+
+data_dict = load_mcts_transfer_data(data_dir, "hpob-data")
 for search_space_id, search_space_data in data_dict.items():
     # Read function seeds
-    search_space_seeds = []
+    dataset_ids = []
     for dataset_id in search_space_data.keys():
-        search_space_seeds.append(eval(dataset_id.split("+")[2]))
+        if dataset_id not in dataset_ids:
+            dataset_ids.append(dataset_id)
 
-    for seed in search_space_seeds:
-        task, metadata, data = create_task_bbob(search_space_id, data_dir, seed)
-        task_desc = f"{search_space_id}_{seed}"
-
-        task_data = []
-        for x, y in zip(data.to_string(), task.y_np):
-            task_data.append({"x": x, "y": y.item()})
-
-        output_file = f"{data_dir}/{task_desc}.json"
-        with open(output_file, "w") as f:
-            json.dump(task_data, f, indent=2)
-
-        metadata_file = f"{data_dir}/{task_desc}.metadata"
-        with open(metadata_file, "w") as f:
-            f.write(metadata.to_string())
-
-# Generate real_world data from MCTS-Transfer paper
-data_dict = load_mcts_transfer_data(data_dir, "real_world")
-for search_space_id, search_space_data in data_dict.items():
-    # Read function seeds
-    search_space_seeds = []
-    for dataset_id in search_space_data.keys():
-        seed = eval(dataset_id.split("+")[2])
-        if seed not in search_space_seeds:
-            search_space_seeds.append(seed)
-
-    for seed in search_space_seeds:
-        task, metadata, data = create_task_real_world(search_space_id, data_dir, seed)
-        task_desc = f"{search_space_id}_{seed}"
+    for dataset_id in dataset_ids:
+        task, metadata, data = create_task_hpob(search_space_id, dataset_id, root_dir=data_dir, data_dir=data_dir)
+        task_desc = f"HPOB_{search_space_id}_{dataset_id}"
 
         task_data = []
         for x, y in zip(data.to_string(), task.y_np):

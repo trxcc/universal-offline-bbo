@@ -261,16 +261,6 @@ class RealWorldTask(OfflineBBOTask):
 
 
 class HPOBTask(OfflineBBOTask):
-    _id2dim = {
-        "5860": 2,
-        "5970": 2,
-        "5859": 6,
-        "5889": 6,
-        "7607": 9,
-        "7609": 9,
-        "5906": 16,
-        "5971": 16,
-    }
 
     def __init__(
         self,
@@ -280,20 +270,20 @@ class HPOBTask(OfflineBBOTask):
         data_dir: Path,
     ) -> None:
         search_space_id = task_name.split("_")[1]
-        assert search_space_id in self._id2dim.keys()
-        self.dim = self._id2dim[search_space_id]
+        # assert search_space_id in self._id2dim.keys()
+        # self.dim = self._id2dim[search_space_id]
 
         self.data = load_mcts_transfer_data(data_dir, "hpob-data")[search_space_id]
         self.did2md = {}
         for did, dataset in self.data.items():
             self.did2md[did] = {
                 "metadata": f"HPOB algorithm {search_space_id} on dataset {did}",
-                "X": np.array(dataset["X"]),
-                "y": np.array(dataset["y"]).squeeze(),
-            }
+                "X": np.array(dataset["X"]) * (-1),
+                "y": np.array(dataset["y"]).squeeze() * (-1),
+            } # For maximization
 
-        func_type = HPOBProblem(search_space_id, dataset_id, root_dir)
-        self.eval_function = lambda x: func_type(x)
+        self.problem = HPOBProblem(search_space_id, dataset_id, root_dir)
+        self.eval_function = lambda x: self.problem(x) * (-1) # For maximization
 
         self.did_in_data = dataset_id in self.did2md.keys()
         if not self.did_in_data:
@@ -375,7 +365,7 @@ class HPOBTask(OfflineBBOTask):
 
     @property
     def ndim_problem(self) -> int:
-        return self.dim
+        return self.problem.dim
 
     @property
     def num_classes(self) -> int:

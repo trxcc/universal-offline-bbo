@@ -4,7 +4,7 @@ from typing import Tuple
 from src.data2str.task_data import ContinuousTaskData, TaskData
 from src.data2str.task_metadata import ContinuousTaskMetadata, TaskMetadata
 from src.tasks.base import OfflineBBOTask
-from src.tasks.mcts_transfer_task.func_task import BBOBTask, RealWorldTask
+from src.tasks.mcts_transfer_task.func_task import BBOBTask, RealWorldTask, HPOBTask
 
 
 def create_task_bbob(
@@ -59,6 +59,26 @@ def create_task_real_world(
         description=REAL_WORLD_TEXTS[task_name]["description"]
         + task.seed2md[func_seed]["metadata"]
         + f"Shift seed is {func_seed}.",
+    )
+    data = ContinuousTaskData(task.x_np)
+
+    return task, metadata, data
+
+
+def create_task_hpob(
+   search_space_id: str, dataset_id: int, root_dir: Path, data_dir: Path
+) -> Tuple[OfflineBBOTask, TaskMetadata, TaskData]:
+    task_desc = f"HPOB_{search_space_id}"
+    print(task_desc)
+    task = HPOBTask(task_desc, dataset_id, root_dir, data_dir)
+
+    xl, xu = task.bounds
+    metadata = ContinuousTaskMetadata(
+        input_dim=task.x_np.shape[1],
+        bounds=[(l, u) for l, u in zip(xl, xu)],
+        name=f"{task_desc}",
+        objective="Minimization on HPO-B benchmark",
+        description=task.did2md[dataset_id]["metadata"],
     )
     data = ContinuousTaskData(task.x_np)
 

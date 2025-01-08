@@ -66,6 +66,7 @@ class StringXYDataModule(LightningDataModule):
             x_values = []
             y_values = []
             metadatas = []
+            task_names_list = []
             for task_name in task_names:
                 data_file = f"{self.hparams.data_dir}/{task_name}.json"
                 assert os.path.exists(data_file)
@@ -82,11 +83,13 @@ class StringXYDataModule(LightningDataModule):
                 with open(metadata_file, "r") as f:
                     metadata = f.read()
                     metadatas.extend([metadata for _ in range(len(xs))])
+                task_names_list.extend([task_name for _ in range(len(xs))])
 
             dataset = TextValueDataset(
                 x_values,
                 y_values,
                 metadatas,
+                task_names_list,
             )
             lengths = [
                 len(x_values) - int(len(x_values) * self.hparams.val_ratio),

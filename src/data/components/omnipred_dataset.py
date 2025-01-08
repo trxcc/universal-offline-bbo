@@ -12,6 +12,7 @@ class OmnipredDataset(Dataset):
         output_tokenizer: Any,
         concat_metadata: bool = True,
         metadatas: Optional[List[str]] = None,
+        task_names_list: Optional[List[str]] = None,
         max_length: int = 128,
     ) -> None:
         self.x_data = x_data
@@ -21,7 +22,7 @@ class OmnipredDataset(Dataset):
         self.max_length = max_length
         self.concat_metadata = concat_metadata
         self.metadatas = metadatas
-
+        self.task_names_list = task_names_list
         if concat_metadata:
             self.x_data = [f"{x}. {m}" for x, m in zip(self.x_data, self.metadatas)]
         else:
@@ -72,6 +73,7 @@ class OmnipredDataset(Dataset):
             "decoder_input_ids": decoder_input_ids,
             "decoder_attention_mask": y_tokens["attention_mask"].squeeze(),
             "labels": labels,
+            "task_name": self.task_names_list[idx],
         }
 
     def _shift_right(self, input_ids, pad_token_id, decoder_start_token_id):

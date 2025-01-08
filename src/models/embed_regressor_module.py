@@ -23,6 +23,7 @@ class EmbedRegressorModule(LightningModule):
         regressor_optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler,
         compile: bool,
+        task_names: str,
         tokenizer_max_length: Optional[int] = None,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         metadata_embedder: Optional[nn.Module] = None,
@@ -48,6 +49,10 @@ class EmbedRegressorModule(LightningModule):
             embedder.apply(init_weights)
 
         self.automatic_optimization = False
+        if "," in task_names:
+            self.task_names = list(task_names.split(","))
+        else:
+            self.task_names = [task_names]
 
         self.tokenizer = tokenizer
         self.embedder = embedder
@@ -85,13 +90,16 @@ class EmbedRegressorModule(LightningModule):
 
         self.criterion = nn.MSELoss()
 
-        self.train_rank_corr = SpearmanCorrCoef()
-        self.val_rank_corr = SpearmanCorrCoef()
+        # self.train_rank_corr = SpearmanCorrCoef()
+        # self.val_rank_corr = SpearmanCorrCoef()
+        self.train_rank_corr = {}
+        self.val_rank_corr = {}
+        self.val_rank_corr_avg_best = {}
 
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
 
-        self.val_rank_corr_best = MaxMetric()
+        # self.val_rank_corr_best = MaxMetric()
 
     def _emb_metadata(self, m: Tuple[str]) -> torch.Tensor:
         context = (
@@ -153,16 +161,16 @@ class EmbedRegressorModule(LightningModule):
 
     def on_train_start(self) -> None:
         self.val_loss.reset()
-        self.val_rank_corr.reset()
-        self.val_rank_corr_best.reset()
+        # self.val_rank_corr.reset()
+        # self.val_rank_corr_best.reset()
 
     def model_step(
         self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]]
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x, y, m = batch
+        x, y, m, task_names = batch
         preds = self.forward(x, m)
         loss = self.criterion(preds.squeeze(), y.squeeze())
-        return loss, preds, y
+        return loss, preds, y, task_names
 
     def training_step(
         self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]], batch_idx: int
@@ -175,7 +183,7 @@ class EmbedRegressorModule(LightningModule):
         opt_regress.zero_grad()
         opt_embed.zero_grad()
 
-        loss, preds, targets = self.model_step(batch)
+        loss, preds, targets, task_names = self.model_step(batch)
         loss.backward()
 
         torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
@@ -192,48 +200,70 @@ class EmbedRegressorModule(LightningModule):
             opt_m_embed.step()
 
         self.train_loss(loss)
-        self.train_rank_corr(preds.squeeze(), targets.squeeze())
         self.log(
-            "train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True
-        )
-        self.log(
-            "train/rank_corr",
-            self.train_rank_corr,
+            "train/loss",
+            self.train_loss,
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            metric_attribute="train_loss",
         )
+
+        # for task_name in set(task_names):
+        #     task_mask = torch.tensor(
+        #         [t == task_name for t in task_names], device=self.device
+        #     )
+        #     if task_mask.any():
+        #         self.train_rank_corr[task_name](
+        #             preds[task_mask].squeeze(), targets[task_mask].squeeze()
+        #         )
 
         return loss
 
     def on_train_epoch_end(self) -> None:
-        pass
+        if self.current_epoch % 5 == 0:
+            self.compute_rank_corr(self.trainer.train_dataloader, "train")
+        # all_corrs = []
+        # dataloader = self.trainer.train_dataloader
+        # for task_name in self.task_names:
+        #     rank_corr = self.train_rank_corr[task_name].compute()
+        #     all_corrs.append(rank_corr)
+        #     self.log(
+        #         f"train/rank_corr_{task_name}",
+        #         rank_corr,
+        #         sync_dist=True,
+        #         prog_bar=False,
+        #         metric_attribute=f"train/rank_corr_{task_name}",
+        #     )
+
+        # avg_corr = torch.stack(all_corrs).mean()
+        # self.log("train/rank_corr_avg", avg_corr, sync_dist=True, prog_bar=True)
 
     def validation_step(
         self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]], batch_idx: int
     ) -> None:
-        loss, preds, targets = self.model_step(batch)
+        loss, preds, targets, task_names = self.model_step(batch)
         self.val_loss(loss)
-        self.val_rank_corr(preds.squeeze(), targets.squeeze())
-        self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log(
-            "val/rank_corr",
-            self.val_rank_corr,
+            "val/loss",
+            self.val_loss,
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            metric_attribute="val_loss",
         )
+        # for task_name in set(task_names):
+        #     task_mask = torch.tensor(
+        #         [t == task_name for t in task_names], device=self.device
+        #     )
+        #     if task_mask.any():
+        #         self.val_rank_corr[task_name](
+        #             preds[task_mask].squeeze(), targets[task_mask].squeeze()
+        #         )
 
     def on_validation_epoch_end(self) -> None:
-        rank_corr = self.val_rank_corr.compute()
-        self.val_rank_corr_best(rank_corr)
-
-        self.log(
-            "val/rank_corr_best",
-            self.val_rank_corr_best.compute(),
-            sync_dist=True,
-            prog_bar=True,
-        )
+        if self.current_epoch % 5 == 0:
+            self.compute_rank_corr(self.trainer.val_dataloaders, "val")
 
     def test_step(self) -> None:
         raise NotImplementedError
@@ -242,6 +272,14 @@ class EmbedRegressorModule(LightningModule):
         pass
 
     def setup(self, stage: str) -> None:
+        if stage == "fit":
+            for task_name in self.task_names:
+                if task_name not in self.train_rank_corr:
+                    self.train_rank_corr[task_name] = SpearmanCorrCoef()
+                if task_name not in self.val_rank_corr:
+                    self.val_rank_corr[task_name] = SpearmanCorrCoef()
+                if task_name not in self.val_rank_corr_avg_best:
+                    self.val_rank_corr_avg_best[task_name] = MaxMetric()
         if self.hparams.compile and stage == "fit":
             self.regressor = torch.compile(self.regressor)
             self.embedder = torch.compile(self.embedder)
@@ -290,3 +328,58 @@ class EmbedRegressorModule(LightningModule):
             optimizers.append({"optimizer": metadata_embedder_optimizer})
 
         return optimizers
+
+    def compute_rank_corr(self, dataloader, prefix="train"):
+
+        self.eval()  # 切换到评估模式
+        task_preds = {task: [] for task in self.task_names}
+        task_targets = {task: [] for task in self.task_names}
+        if prefix == "train":
+            compute_rank_corr = self.train_rank_corr
+        else:
+            compute_rank_corr = self.val_rank_corr
+            compute_rank_corr_avg_best = self.val_rank_corr_avg_best
+        with torch.no_grad():
+            for batch in dataloader:
+                x, y, m, task_names = batch
+                y = y.to(self.device)
+                preds = self.forward(x, m)
+                for i, task_name in enumerate(task_names):
+                    task_preds[task_name].append(preds[i].squeeze())
+                    task_targets[task_name].append(y[i].squeeze())
+
+        all_corrs = []
+        for task_name in self.task_names:
+            if task_preds[task_name]:  # 如果有数据
+                task_pred = torch.stack(task_preds[task_name])
+                task_target = torch.stack(task_targets[task_name])
+                rank_corr = compute_rank_corr[task_name](task_pred, task_target)
+                all_corrs.append(rank_corr)
+                self.log(
+                    f"{prefix}/rank_corr_{task_name}",
+                    rank_corr,
+                    sync_dist=True,
+                    prog_bar=False,
+                    metric_attribute=f"{prefix}/rank_corr_{task_name}",
+                )
+
+        if all_corrs:
+            avg_corr = torch.stack(all_corrs).mean()
+            self.log(
+                f"{prefix}/rank_corr_avg",
+                avg_corr,
+                sync_dist=True,
+                prog_bar=True,
+                metric_attribute=f"{prefix}/rank_corr_avg",
+            )
+            if prefix == "val":
+                compute_rank_corr_avg_best[task_name](avg_corr)
+                self.log(
+                    f"{prefix}/rank_corr_avg_best/{task_name}",
+                    compute_rank_corr_avg_best[task_name].compute(),
+                    sync_dist=True,
+                    prog_bar=False,
+                    metric_attribute=f"{prefix}/rank_corr_avg_best/{task_name}",
+                )
+
+        self.train()

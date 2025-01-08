@@ -33,10 +33,11 @@ from src.searcher.pso import PSOSearcher
 
 # task = DesignBenchTask("Superconductor-RandomForest-v0")
 from src.tasks.soo_bench_task import SOOBenchTask
-
+from src.tasks.mcts_transfer_task.func_task import BBOBTask
 # from src.tasks.design_bench_task import DesignBenchTask
 
-task = SOOBenchTask("gtopx_data", 2, 1, low=0, high=100, num_data=10000)
+# task = SOOBenchTask("gtopx_data", 2, 1, low=0, high=100, num_data=10000)
+task = BBOBTask(task_name="GriewankRosenbrock", func_seed=0, data_dir=root/"data")
 ndim_problem = task.x_np.shape[1]
 lb = task.x_np.min(axis=0)
 ub = task.x_np.max(axis=0)
@@ -56,7 +57,7 @@ ub = task.x_np.max(axis=0)
 #     MAXIMIZE=True,
 # )
 searcher = GASearcher(
-    task=task, score_fn=task.test_evaluate, num_solutions=128, MAXIMIZE=True, n_gen=100
+    task=task, score_fn=task.test_evaluate, num_solutions=128, MAXIMIZE=True, n_gen=200
 )
 x_res = searcher.run()
 print(x_res.shape)

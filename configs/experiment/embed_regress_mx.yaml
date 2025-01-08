@@ -32,12 +32,12 @@ model:
 
   regressor:
     input_dim: 384
-  from_pretrained: true
+  from_pretrained: false
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: embed_regress_multitask_m_emb
+task_name: embed_regress_multitask_m_x_cat
 
 logger:
   wandb:

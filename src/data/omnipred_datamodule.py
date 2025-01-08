@@ -78,6 +78,7 @@ class OmnipredDataModule(LightningDataModule):
             x_values = []
             y_values = []
             metadatas = []
+            task_names_list = []
             for task_name in task_names:
                 data_file = f"{self.hparams.data_dir}/{task_name}.json"
                 assert os.path.exists(data_file)
@@ -94,7 +95,7 @@ class OmnipredDataModule(LightningDataModule):
                 with open(metadata_file, "r") as f:
                     metadata = f.read()
                     metadatas.extend([metadata for _ in range(len(xs))])
-
+                    task_names_list.extend([task_name for _ in range(len(xs))])
             dataset = OmnipredDataset(
                 x_data=x_values,
                 y_data=y_values,
@@ -102,6 +103,7 @@ class OmnipredDataModule(LightningDataModule):
                 output_tokenizer=self.hparams.output_tokenizer,
                 concat_metadata=self.hparams.concat_metadata,
                 metadatas=metadatas,
+                task_names_list=task_names_list,
                 max_length=self.hparams.max_length,
             )
             lengths = [

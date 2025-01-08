@@ -18,6 +18,7 @@ class OmnipredModule(LightningModule):
         output_tokenizer: Any,
         numeric_interval: int = 50,
         scheduler=None,
+        task_names: Optional[str] = None,
     ) -> None:
         super().__init__()
 
@@ -25,14 +26,13 @@ class OmnipredModule(LightningModule):
         self.model = model
         self.input_tokenizer = input_tokenizer
         self.output_tokenizer = output_tokenizer
-
-        self.train_rank_corr = SpearmanCorrCoef()
-        self.val_rank_corr = SpearmanCorrCoef()
+        if "," in task_names:
+            self.task_names = list(task_names.split(","))
+        else:
+            self.task_names = [task_names]
 
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
-
-        self.val_rank_corr_best = MaxMetric()
 
         self.train_numeric_mse = MeanMetric()
         self.train_numeric_rank_corr = SpearmanCorrCoef()
@@ -40,7 +40,7 @@ class OmnipredModule(LightningModule):
         self.val_numeric_rank_corr = SpearmanCorrCoef()
 
         self.last_numeric_epoch = -1
-        self.numeric_interval = 50
+        self.numeric_interval = 1
 
     def forward(
         self,
@@ -60,8 +60,8 @@ class OmnipredModule(LightningModule):
 
     def on_train_start(self) -> None:
         self.val_loss.reset()
-        self.val_rank_corr.reset()
-        self.val_rank_corr_best.reset()
+        # self.val_rank_corr.reset()
+        # self.val_rank_corr_best.reset()
 
     def model_step(
         self, batch: Dict[str, torch.Tensor]
@@ -87,18 +87,27 @@ class OmnipredModule(LightningModule):
 
         # Log metrics
         self.log(
-            "train/loss", self.train_loss, on_step=True, on_epoch=True, prog_bar=True
+            "train/loss",
+            self.train_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            metric_attribute="train/loss",
         )
 
         return loss
 
     def on_train_epoch_end(self) -> None:
+        print("on_train_epoch_end")
         if (self.current_epoch - self.last_numeric_epoch) >= self.numeric_interval:
+            print("Computing numeric metrics")
             self.last_numeric_epoch = self.current_epoch
+            train_loader = self.trainer.train_dataloader
+            val_loader = self.trainer.val_dataloaders
 
-            self.compute_numeric_metrics(self.trainer.train_dataloader, prefix="train")
+            self.compute_numeric_metrics(train_loader, prefix="train")
 
-            self.compute_numeric_metrics(self.trainer.val_dataloaders, prefix="val")
+            self.compute_numeric_metrics(val_loader, prefix="val")
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         loss, preds, targets = self.model_step(batch)
@@ -107,7 +116,14 @@ class OmnipredModule(LightningModule):
         self.val_loss(loss)
 
         # Log metrics
-        self.log("val/loss", self.val_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log(
+            "val/loss",
+            self.val_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            metric_attribute="val/loss",
+        )
 
     def on_validation_epoch_end(self) -> None:
         pass
@@ -196,17 +212,20 @@ class OmnipredModule(LightningModule):
     def compute_numeric_metrics(self, dataloader, prefix="val"):
         self.eval()
         numeric_mse = MeanMetric().to(self.device)
-        numeric_rank_corr = SpearmanCorrCoef().to(self.device)
+        rank_corr = {
+            task: SpearmanCorrCoef().to(self.device) for task in self.task_names
+        }
 
-        all_preds = []
-        all_targets = []
-
+        task_preds = {task: [] for task in self.task_names}
+        task_targets = {task: [] for task in self.task_names}
         with torch.no_grad():
             for batch in dataloader:
+                # print(batch)
+                # assert False
                 input_ids = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
                 labels = batch["labels"].to(self.device)
-
+                task_names = batch["task_name"]
                 pred_numbers = self.generate_numbers(
                     input_ids=input_ids, attention_mask=attention_mask
                 )
@@ -230,20 +249,43 @@ class OmnipredModule(LightningModule):
                 numeric_mse(
                     F.mse_loss(pred_numbers.squeeze(), target_numbers.squeeze())
                 )
-                numeric_rank_corr(pred_numbers.squeeze(), target_numbers.squeeze())
 
-                all_preds.extend(pred_numbers.cpu().numpy())
-                all_targets.extend(target_numbers.cpu().numpy())
+                for i, task_name in enumerate(task_names):
+                    task_preds[task_name].append(pred_numbers[i])
+                    task_targets[task_name].append(target_numbers[i])
 
         self.log(
-            f"{prefix}/numeric_mse", numeric_mse.compute(), on_epoch=True, prog_bar=True
-        )
-        self.log(
-            f"{prefix}/numeric_rank_corr",
-            numeric_rank_corr.compute(),
+            f"{prefix}/numeric_mse",
+            numeric_mse.compute(),
             on_epoch=True,
             prog_bar=True,
+            metric_attribute=f"{prefix}/numeric_mse",
+        )
+        all_corrs = []
+        for task_name in self.task_names:
+            task_pred = torch.stack(task_preds[task_name])
+            task_target = torch.stack(task_targets[task_name])
+            task_rank_corr = rank_corr[task_name](
+                task_pred.squeeze(), task_target.squeeze()
+            )
+            all_corrs.append(task_rank_corr)
+            self.log(
+                f"{prefix}/rank_corr_{task_name}",
+                task_rank_corr,
+                on_epoch=True,
+                sync_dist=True,
+                prog_bar=False,
+                metric_attribute=f"{prefix}/rank_corr_{task_name}",
+            )
+
+        avg_corr = torch.stack(all_corrs).mean()
+        self.log(
+            f"{prefix}/rank_corr_avg",
+            avg_corr,
+            on_epoch=True,
+            sync_dist=True,
+            prog_bar=True,
+            metric_attribute=f"{prefix}/rank_corr_avg",
         )
 
         self.train()
-        return all_preds, all_targets

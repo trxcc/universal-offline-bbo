@@ -35,4 +35,5 @@ embedder_optimizer:
   lr: 0.0001
   weight_decay: 0.00001
 
+task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
   

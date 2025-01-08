@@ -9,6 +9,7 @@ from src.data2str.design_bench_data import TASKNAMES as TASKNAMES_DB
 from src.data2str.design_bench_data import create_task as create_task_db
 from src.data2str.soo_bench_data import TASKNAMES as TASKNAMES_SB
 from src.data2str.soo_bench_data import create_task as create_task_sb
+from src.tasks.mcts_transfer_task.utils import load_mcts_transfer_data
 
 data_path = root / "data"
 os.makedirs(data_path, exist_ok=True)
@@ -35,7 +36,7 @@ for benchmark_id in [2, 3, 4, 6]:
     print(task_desc)
 
     task, metadata, data = create_task_sb(
-        "gtopx_data", benchmark_id, 1, low=0, high=100
+        "gtopx_data", benchmark_id, 1, low=25, high=75
     )
 
     task_data = []
@@ -49,3 +50,4 @@ for benchmark_id in [2, 3, 4, 6]:
     metadata_file = f"{data_path}/{task_desc}.metadata"
     with open(metadata_file, "w") as f:
         f.write(metadata.to_string())
+

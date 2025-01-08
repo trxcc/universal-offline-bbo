@@ -34,7 +34,7 @@ class BBOBTask(OfflineBBOTask):
             collect_algo, collect_seed, eval_seed = tuple(dataset_id.split("+"))
             self.seed2md[eval(eval_seed)] = {
                 "metadata": f"Collect algorithm: {collect_algo}, "
-                f"with random seed = {collect_seed}. ",
+                f"with random seed = {collect_seed}; ",
                 "X": np.array(dataset["X"]),
                 "y": np.array(dataset["y"]),
             }
@@ -157,7 +157,7 @@ class RealWorldTask(OfflineBBOTask):
             collect_algo, collect_seed, eval_seed = tuple(dataset_id.split("+"))
             self.seed2md[eval(eval_seed)] = {
                 "metadata": f"Collect algorithm: {collect_algo}, "
-                f"with random seed = {collect_seed}. ",
+                f"with random seed = {collect_seed}; ",
                 "X": np.array(dataset["X"]),
                 "y": np.array(dataset["y"]),
             }
@@ -169,12 +169,24 @@ class RealWorldTask(OfflineBBOTask):
         # Besides, the data provide in mcts-transfer is maximizing
 
         self.seed_in_data = func_seed in self.seed2md.keys()
-        task_x = self.seed2md[func_seed]["X"]
-        task_y = self.seed2md[func_seed]["y"]
-        if reevaluate:
-            preds = np.array([self.eval_function(x0) for x0 in task_x])
-            task_y = preds.squeeze()
-            self.seed2md[func_seed]["y"] = preds
+        if not self.seed_in_data:
+            warnings.warn(
+                f"Not support function seed in {task_name}. "
+                "The search procedure will initialize with random designs. "
+            )
+            data_size = list(self.data.values())[0]["X"].shape[0]
+            lower_bound, upper_bound = self.bound
+            task_x = lower_bound + (upper_bound - lower_bound) * np.random.random(
+                (data_size, self.ndim_problem)
+            )
+            task_y = np.zeros(shape=(data_size, 1))
+        else:
+            task_x = self.seed2md[func_seed]["X"]
+            task_y = self.seed2md[func_seed]["y"]
+            if reevaluate:
+                preds = np.array([self.eval_function(x0) for x0 in task_x])
+                task_y = preds.squeeze()
+                self.seed2md[func_seed]["y"] = preds
 
         self.task_type = "Continuous"
 

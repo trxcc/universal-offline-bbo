@@ -7,7 +7,7 @@ root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True
 
 from src.data2str.design_bench_data import TASKNAMES as TASKNAMES_DB
 from src.data2str.design_bench_data import create_task as create_task_db
-from src.data2str.mcts_transfer_data import create_task_bbob
+from src.data2str.mcts_transfer_data import create_task_bbob, create_task_real_world
 from src.data2str.soo_bench_data import TASKNAMES as TASKNAMES_SB
 from src.data2str.soo_bench_data import create_task as create_task_sb
 from src.tasks.mcts_transfer_task.utils import load_mcts_transfer_data
@@ -66,6 +66,32 @@ for search_space_id, search_space_data in data_dict.items():
 
     for seed in search_space_seeds:
         task, metadata, data = create_task_bbob(search_space_id, data_dir, seed)
+        task_desc = f"{search_space_id}_{seed}"
+
+        task_data = []
+        for x, y in zip(data.to_string(), task.y_np):
+            task_data.append({"x": x, "y": y.item()})
+
+        output_file = f"{data_dir}/{task_desc}.json"
+        with open(output_file, "w") as f:
+            json.dump(task_data, f, indent=2)
+
+        metadata_file = f"{data_dir}/{task_desc}.metadata"
+        with open(metadata_file, "w") as f:
+            f.write(metadata.to_string())
+
+# Generate real_world data from MCTS-Transfer paper
+data_dict = load_mcts_transfer_data(data_dir, "real_world")
+for search_space_id, search_space_data in data_dict.items():
+    # Read function seeds
+    search_space_seeds = []
+    for dataset_id in search_space_data.keys():
+        seed = eval(dataset_id.split("+")[2])
+        if seed not in search_space_seeds:
+            search_space_seeds.append(seed)
+
+    for seed in search_space_seeds:
+        task, metadata, data = create_task_real_world(search_space_id, data_dir, seed)
         task_desc = f"{search_space_id}_{seed}"
 
         task_data = []

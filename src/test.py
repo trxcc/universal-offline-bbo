@@ -39,7 +39,7 @@ from src.tasks.mcts_transfer_task.func_task import BBOBTask, RealWorldTask
 
 # task = SOOBenchTask("gtopx_data", 2, 1, low=0, high=100, num_data=10000)
 # task = BBOBTask(task_name="GriewankRosenbrock", func_seed=0, data_dir=root / "data")
-task = RealWorldTask("RobotPush", root / "data", 100, reevaluate=False)
+task = RealWorldTask("Rover", root / "data", 150, reevaluate=False)
 ndim_problem = task.x_np.shape[1]
 lb = task.x_np.min(axis=0)
 ub = task.x_np.max(axis=0)

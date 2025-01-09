@@ -4,7 +4,7 @@ from typing import Tuple
 from src.data2str.task_data import ContinuousTaskData, TaskData
 from src.data2str.task_metadata import ContinuousTaskMetadata, TaskMetadata
 from src.tasks.base import OfflineBBOTask
-from src.tasks.mcts_transfer_task.func_task import BBOBTask, RealWorldTask, HPOBTask
+from src.tasks.mcts_transfer_task.func_task import BBOBTask, HPOBTask, RealWorldTask
 
 
 def create_task_bbob(
@@ -66,7 +66,7 @@ def create_task_real_world(
 
 
 def create_task_hpob(
-   search_space_id: str, dataset_id: int, root_dir: Path, data_dir: Path
+    search_space_id: str, dataset_id: int, root_dir: Path, data_dir: Path
 ) -> Tuple[OfflineBBOTask, TaskMetadata, TaskData]:
     task_desc = f"HPOB_{search_space_id}"
     print(task_desc)

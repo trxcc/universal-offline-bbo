@@ -1,8 +1,5 @@
 _target_: src.models.embed_regressor_module.EmbedRegressorModule
 
-tokenizer:
-  _target_: transformers.AutoTokenizer.from_pretrained
-  pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
   
 embedder: 
   _target_: transformers.AutoModel.from_pretrained
@@ -21,11 +18,6 @@ regressor_optimizer:
   lr: 0.0003
   weight_decay: 0.00001
 
-# scheduler: 
-#   _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-#   _partial_: true
-#   eta_min: 0
-#   T_max: ${trainer.max_epochs}
 scheduler: 
   _target_: transformers.get_linear_schedule_with_warmup
   _partial_: true

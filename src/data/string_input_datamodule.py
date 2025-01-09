@@ -10,12 +10,16 @@ from torch.utils.data.distributed import DistributedSampler
 from src.data.components.text_value_dataset import TextValueDataset
 from src.utils.io_utils import load_task_names
 
+
 class StringXYDataModule(LightningDataModule):
 
     def __init__(
         self,
         task_names: str,
         *,
+        tokenizer: Any,
+        tokenizer_max_length: int = 128,
+        cat_metadata: bool = True,
         data_dir: str = "data/",
         val_ratio: float = 0.2,
         batch_size: int = 128,
@@ -31,6 +35,8 @@ class StringXYDataModule(LightningDataModule):
         self.device = device or torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
+        self.tokenizer = tokenizer
+        self.tokenizer_max_length = tokenizer_max_length
         self.save_hyperparameters(logger=False)
 
         # TODO: More flexible setting of transforms
@@ -85,8 +91,11 @@ class StringXYDataModule(LightningDataModule):
             dataset = TextValueDataset(
                 x_values,
                 y_values,
-                metadatas,
-                task_names_list,
+                tokenizer=self.tokenizer,
+                tokenizer_max_length=self.tokenizer_max_length,
+                concat_metadata=self.hparams.cat_metadata,
+                metadatas=metadatas,
+                task_names=task_names_list,
             )
             lengths = [
                 len(x_values) - int(len(x_values) * self.hparams.val_ratio),

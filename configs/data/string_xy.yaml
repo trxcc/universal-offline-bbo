@@ -7,3 +7,8 @@ persistent_workers: true
 pin_memory: false 
 
 data_dir: data/
+
+tokenizer:
+  _target_: transformers.AutoTokenizer.from_pretrained
+  pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
+  concat_metadata: true 

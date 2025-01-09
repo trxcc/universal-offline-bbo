@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import torch
 from torch.utils.data import Dataset
@@ -9,27 +9,60 @@ class TextValueDataset(Dataset):
         self,
         texts: List[str],
         values: List[float],
+        tokenizer: Any,
+        tokenizer_max_length: int = 128,
+        concat_metadata: bool = True,
         metadatas: Optional[List[str]] = None,
-        task_names: Optional[List[str]] = None,  # 添加task_names参数
+        task_names: Optional[List[str]] = None,
     ) -> None:
         self.texts = texts
         self.values = torch.tensor(values, dtype=torch.float32)
         self.values = (self.values - self.values.mean(dim=0)) / self.values.std(dim=0)
+        self.tokenizer = tokenizer
+        self.tokenizer_max_length = tokenizer_max_length
         self.metadatas = metadatas
-        self.task_names = task_names  # 存储每个样本对应的task_name
+        self.task_names = task_names
+
+        self.concat_metadata = concat_metadata
+        if concat_metadata:
+            self.texts = [f"{x}. {m}" for x, m in zip(self.texts, self.metadatas)]
 
     def __len__(self):
         return len(self.texts)
 
-    def __getitem__(
-        self, idx: int
-    ) -> Tuple[str, torch.Tensor, str, str]:  # 修改返回类型
+    def __getitem__(self, idx: int) -> Tuple[str, torch.Tensor, str, str]:
         text = self.texts[idx]
-        value = self.values[idx]
-        metadata = self.metadatas[idx]
-        task_name = self.task_names[idx]
+        text_tokens = self.tokenizer(
+            text,
+            padding="max_length",
+            max_length=self.tokenizer_max_length,
+            truncation=True,
+            return_tensors="pt",
+        )
+        for k, v in text_tokens.items():
+            text_tokens[k] = v.squeeze()
 
-        return text, value, metadata, task_name
+        value = self.values[idx]
+
+        metadata = self.metadatas[idx]
+        metadata_tokens = self.tokenizer(
+            metadata,
+            padding="max_length",
+            max_length=self.tokenizer_max_length,
+            truncation=True,
+            return_tensors="pt",
+        )
+        for k, v in metadata_tokens.items():
+            metadata_tokens[k] = v.squeeze()
+
+        task_names = self.task_names[idx]
+
+        return {
+            "text": text_tokens,
+            "value": value.squeeze(),
+            "metadata": metadata_tokens,
+            "task_names": task_names,
+        }
 
 
 if __name__ == "__main__":

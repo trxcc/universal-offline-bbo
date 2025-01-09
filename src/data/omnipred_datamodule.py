@@ -10,6 +10,7 @@ from torch.utils.data.distributed import DistributedSampler
 from src.data.components.omnipred_dataset import OmnipredDataset
 from src.utils.io_utils import load_task_names
 
+
 class OmnipredDataModule(LightningDataModule):
 
     def __init__(
@@ -93,7 +94,7 @@ class OmnipredDataModule(LightningDataModule):
                     metadata = f.read()
                     metadatas.extend([metadata for _ in range(len(xs))])
                     task_names_list.extend([task_name for _ in range(len(xs))])
-            
+
             dataset = OmnipredDataset(
                 x_data=x_values,
                 y_data=y_values,

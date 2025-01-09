@@ -7,7 +7,11 @@ root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True
 
 from src.data2str.design_bench_data import TASKNAMES as TASKNAMES_DB
 from src.data2str.design_bench_data import create_task as create_task_db
-from src.data2str.mcts_transfer_data import create_task_bbob, create_task_real_world, create_task_hpob
+from src.data2str.mcts_transfer_data import (
+    create_task_bbob,
+    create_task_hpob,
+    create_task_real_world,
+)
 from src.data2str.soo_bench_data import TASKNAMES as TASKNAMES_SB
 from src.data2str.soo_bench_data import create_task as create_task_sb
 from src.tasks.mcts_transfer_task.utils import load_mcts_transfer_data
@@ -115,7 +119,9 @@ for search_space_id, search_space_data in data_dict.items():
             dataset_ids.append(dataset_id)
 
     for dataset_id in dataset_ids:
-        task, metadata, data = create_task_hpob(search_space_id, dataset_id, root_dir=data_dir, data_dir=data_dir)
+        task, metadata, data = create_task_hpob(
+            search_space_id, dataset_id, root_dir=data_dir, data_dir=data_dir
+        )
         task_desc = f"HPOB_{search_space_id}_{dataset_id}"
 
         task_data = []

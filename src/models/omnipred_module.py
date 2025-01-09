@@ -1,5 +1,5 @@
-from typing import Any, Dict, Optional, Tuple, Union, List
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -9,6 +9,7 @@ from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 from transformers import T5ForConditionalGeneration
 
 from src.utils.io_utils import load_task_names
+
 
 class OmnipredModule(LightningModule):
     def __init__(
@@ -29,7 +30,7 @@ class OmnipredModule(LightningModule):
         self.model = model
         self.input_tokenizer = input_tokenizer
         self.output_tokenizer = output_tokenizer
-        
+
         self.task_names = load_task_names(task_names, data_dir)
 
         self.train_loss = MeanMetric()
@@ -221,8 +222,6 @@ class OmnipredModule(LightningModule):
         task_targets = {task: [] for task in self.task_names}
         with torch.no_grad():
             for batch in dataloader:
-                # print(batch)
-                # assert False
                 input_ids = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
                 labels = batch["labels"].to(self.device)
@@ -266,6 +265,7 @@ class OmnipredModule(LightningModule):
         for task_name in self.task_names:
             task_pred = torch.stack(task_preds[task_name])
             task_target = torch.stack(task_targets[task_name])
+            print(task_pred.shape, task_target.shape)
             task_rank_corr = rank_corr[task_name](
                 task_pred.squeeze(), task_target.squeeze()
             )

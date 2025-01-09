@@ -280,10 +280,10 @@ class HPOBTask(OfflineBBOTask):
                 "metadata": f"HPOB algorithm {search_space_id} on dataset {did}",
                 "X": np.array(dataset["X"]) * (-1),
                 "y": np.array(dataset["y"]).squeeze() * (-1),
-            } # For maximization
+            }  # For maximization
 
         self.problem = HPOBProblem(search_space_id, dataset_id, root_dir)
-        self.eval_function = lambda x: self.problem(x) * (-1) # For maximization
+        self.eval_function = lambda x: self.problem(x) * (-1)  # For maximization
 
         self.did_in_data = dataset_id in self.did2md.keys()
         if not self.did_in_data:

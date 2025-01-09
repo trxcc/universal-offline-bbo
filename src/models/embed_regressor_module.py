@@ -1,12 +1,13 @@
 from contextlib import nullcontext
 from itertools import chain
-from typing import Any, Dict, Optional, Tuple, List 
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
+from transformers.tokenization_utils_base import BatchEncoding
 
 from src.utils import RankedLogger
 from src.utils.io_utils import load_task_names
@@ -18,7 +19,6 @@ class EmbedRegressorModule(LightningModule):
 
     def __init__(
         self,
-        tokenizer: Any,
         embedder: nn.Module,
         embedder_output_dim: int,
         regressor: nn.Module,
@@ -27,7 +27,6 @@ class EmbedRegressorModule(LightningModule):
         compile: bool,
         data_dir: Path,
         task_names: List[str],
-        tokenizer_max_length: Optional[int] = None,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         metadata_embedder: Optional[nn.Module] = None,
         metadata_embedder_output_dim: Optional[int] = None,
@@ -54,7 +53,6 @@ class EmbedRegressorModule(LightningModule):
         self.automatic_optimization = False
         self.task_names = load_task_names(task_names, data_dir)
 
-        self.tokenizer = tokenizer
         self.embedder = embedder
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
@@ -86,12 +84,9 @@ class EmbedRegressorModule(LightningModule):
             self.batch_norm = nn.BatchNorm1d(
                 embedder_output_dim + metadata_projector_output_dim
             )
-        # self.layer_norm = nn.LayerNorm(embedder_output_dim)
 
         self.criterion = nn.MSELoss()
 
-        # self.train_rank_corr = SpearmanCorrCoef()
-        # self.val_rank_corr = SpearmanCorrCoef()
         self.train_rank_corr = {}
         self.val_rank_corr = {}
         self.val_rank_corr_avg_best = {}
@@ -99,34 +94,18 @@ class EmbedRegressorModule(LightningModule):
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
 
-        # self.val_rank_corr_best = MaxMetric()
-
-    def _emb_metadata(self, m: Tuple[str]) -> torch.Tensor:
+    def _emb_metadata(self, m: Tuple[BatchEncoding]) -> torch.Tensor:
         context = (
             torch.no_grad() if not self.optimize_metadata_embedder else nullcontext()
         )
         with context:
-            encoded_input = self.tokenizer(
-                m,
-                max_length=self.hparams.tokenizer_max_length,
-                padding=True,
-                truncation=True,
-                return_tensors="pt",
-            ).to(self.device)
+            encoded_input = m.to(self.device)
             emb_m = self.metadata_embedder(**encoded_input)
             emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
         return emb_m
 
-    def forward(self, x: Tuple[str], m: Tuple[str]) -> torch.Tensor:
-        if self.cat_metadata:
-            x = [f"{x}. {m}" for m, x in zip(m, x)]
-        encoded_input = self.tokenizer(
-            x,
-            max_length=self.hparams.tokenizer_max_length,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-        ).to(self.device)
+    def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding]) -> torch.Tensor:
+        encoded_input = x.to(self.device)
         x_emb = self.embedder(**encoded_input)
         x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
 
@@ -161,19 +140,23 @@ class EmbedRegressorModule(LightningModule):
 
     def on_train_start(self) -> None:
         self.val_loss.reset()
-        # self.val_rank_corr.reset()
-        # self.val_rank_corr_best.reset()
 
     def model_step(
-        self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]]
+        self, batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]]
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x, y, m, task_names = batch
+        x = batch["text"]
+        y = batch["value"]
+        m = batch["metadata"]
+        task_names = batch["task_names"]
+
         preds = self.forward(x, m)
         loss = self.criterion(preds.squeeze(), y.squeeze())
         return loss, preds, y, task_names
 
     def training_step(
-        self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]], batch_idx: int
+        self,
+        batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]],
+        batch_idx: int,
     ) -> torch.Tensor:
         if self.optimize_metadata_embedder:
             opt_regress, opt_embed, opt_m_embed = self.optimizers()
@@ -209,38 +192,16 @@ class EmbedRegressorModule(LightningModule):
             metric_attribute="train_loss",
         )
 
-        # for task_name in set(task_names):
-        #     task_mask = torch.tensor(
-        #         [t == task_name for t in task_names], device=self.device
-        #     )
-        #     if task_mask.any():
-        #         self.train_rank_corr[task_name](
-        #             preds[task_mask].squeeze(), targets[task_mask].squeeze()
-        #         )
-
         return loss
 
     def on_train_epoch_end(self) -> None:
         if self.current_epoch % 5 == 0:
             self.compute_rank_corr(self.trainer.train_dataloader, "train")
-        # all_corrs = []
-        # dataloader = self.trainer.train_dataloader
-        # for task_name in self.task_names:
-        #     rank_corr = self.train_rank_corr[task_name].compute()
-        #     all_corrs.append(rank_corr)
-        #     self.log(
-        #         f"train/rank_corr_{task_name}",
-        #         rank_corr,
-        #         sync_dist=True,
-        #         prog_bar=False,
-        #         metric_attribute=f"train/rank_corr_{task_name}",
-        #     )
-
-        # avg_corr = torch.stack(all_corrs).mean()
-        # self.log("train/rank_corr_avg", avg_corr, sync_dist=True, prog_bar=True)
 
     def validation_step(
-        self, batch: Tuple[Tuple[str], torch.Tensor, Tuple[str]], batch_idx: int
+        self,
+        batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]],
+        batch_idx: int,
     ) -> None:
         loss, preds, targets, task_names = self.model_step(batch)
         self.val_loss(loss)
@@ -252,14 +213,6 @@ class EmbedRegressorModule(LightningModule):
             prog_bar=True,
             metric_attribute="val_loss",
         )
-        # for task_name in set(task_names):
-        #     task_mask = torch.tensor(
-        #         [t == task_name for t in task_names], device=self.device
-        #     )
-        #     if task_mask.any():
-        #         self.val_rank_corr[task_name](
-        #             preds[task_mask].squeeze(), targets[task_mask].squeeze()
-        #         )
 
     def on_validation_epoch_end(self) -> None:
         if self.current_epoch % 5 == 0:
@@ -331,7 +284,7 @@ class EmbedRegressorModule(LightningModule):
 
     def compute_rank_corr(self, dataloader, prefix="train"):
 
-        self.eval()  # 切换到评估模式
+        self.eval()
         task_preds = {task: [] for task in self.task_names}
         task_targets = {task: [] for task in self.task_names}
         if prefix == "train":
@@ -341,7 +294,11 @@ class EmbedRegressorModule(LightningModule):
             compute_rank_corr_avg_best = self.val_rank_corr_avg_best
         with torch.no_grad():
             for batch in dataloader:
-                x, y, m, task_names = batch
+                x = batch["text"]
+                y = batch["value"]
+                m = batch["metadata"]
+                task_names = batch["task_names"]
+
                 y = y.to(self.device)
                 preds = self.forward(x, m)
                 for i, task_name in enumerate(task_names):

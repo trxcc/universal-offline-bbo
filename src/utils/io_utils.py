@@ -12,7 +12,7 @@ def load_task_names(task_names: Union[str, List[str]], data_dir: Path) -> List[s
             filepath = os.path.join(data_dir, filename)
             if os.path.isfile(filepath) and filename.endswith(".json"):
                 if filename.startswith("HPOB") and not filename.startswith(
-                    ("HPOB_5889", "HPOB_7607", "HPOB_5906")
+                    ("HPOB_5889", "HPOB_5906")
                 ):
                     continue
                 task_name = os.path.splitext(filename)[0]

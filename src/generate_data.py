@@ -5,6 +5,8 @@ import rootutils
 
 root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
+from src.data2str.bboplace_bench_data import TASKNAMES as TASKNAMES_PLACE
+from src.data2str.bboplace_bench_data import create_task as create_task_place
 from src.data2str.design_bench_data import TASKNAMES as TASKNAMES_DB
 from src.data2str.design_bench_data import create_task as create_task_db
 from src.data2str.mcts_transfer_data import (
@@ -135,3 +137,20 @@ for search_space_id, search_space_data in data_dict.items():
         metadata_file = f"{data_dir}/{task_desc}.metadata"
         with open(metadata_file, "w") as f:
             f.write(metadata.to_string())
+
+
+for task_name in TASKNAMES_PLACE:
+    print(task_name)
+    task, metadata, data = create_task_place(task_name, root)
+
+    task_data = []
+    for x, y in zip(data.to_string(), task.y_np):
+        task_data.append({"x": x, "y": y.item()})
+
+    output_file = f"{data_dir}/{task_name}.json"
+    with open(output_file, "w") as f:
+        json.dump(task_data, f, indent=2)
+
+    metadata_file = f"{data_dir}/{task_name}.metadata"
+    with open(metadata_file, "w") as f:
+        f.write(metadata.to_string())

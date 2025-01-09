@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.data.distributed import DistributedSampler
 
 from src.data.components.omnipred_dataset import OmnipredDataset
-
+from src.utils.io_utils import load_task_names
 
 class OmnipredDataModule(LightningDataModule):
 
@@ -70,10 +70,7 @@ class OmnipredDataModule(LightningDataModule):
 
         if not self.data_train or not self.data_val:
             # TODO: Load data as a single function
-            if "," in self.hparams.task_names:
-                task_names = list(self.hparams.task_names.split(","))
-            else:
-                task_names = [self.hparams.task_names]
+            task_names = load_task_names(self.hparams.task_names, self.hparams.data_dir)
 
             x_values = []
             y_values = []
@@ -96,6 +93,7 @@ class OmnipredDataModule(LightningDataModule):
                     metadata = f.read()
                     metadatas.extend([metadata for _ in range(len(xs))])
                     task_names_list.extend([task_name for _ in range(len(xs))])
+            
             dataset = OmnipredDataset(
                 x_data=x_values,
                 y_data=y_values,

@@ -5,3 +5,5 @@ batch_size: 128
 num_workers: 64
 persistent_workers: true
 pin_memory: false 
+
+data_dir: data/

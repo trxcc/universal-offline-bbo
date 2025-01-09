@@ -1,6 +1,7 @@
 from contextlib import nullcontext
 from itertools import chain
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List 
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -8,6 +9,7 @@ from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 
 from src.utils import RankedLogger
+from src.utils.io_utils import load_task_names
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -23,7 +25,8 @@ class EmbedRegressorModule(LightningModule):
         regressor_optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler,
         compile: bool,
-        task_names: str,
+        data_dir: Path,
+        task_names: List[str],
         tokenizer_max_length: Optional[int] = None,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         metadata_embedder: Optional[nn.Module] = None,
@@ -49,10 +52,7 @@ class EmbedRegressorModule(LightningModule):
             embedder.apply(init_weights)
 
         self.automatic_optimization = False
-        if "," in task_names:
-            self.task_names = list(task_names.split(","))
-        else:
-            self.task_names = [task_names]
+        self.task_names = load_task_names(task_names, data_dir)
 
         self.tokenizer = tokenizer
         self.embedder = embedder

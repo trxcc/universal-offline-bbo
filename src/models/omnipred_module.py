@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union, List
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -7,6 +8,7 @@ from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 from transformers import T5ForConditionalGeneration
 
+from src.utils.io_utils import load_task_names
 
 class OmnipredModule(LightningModule):
     def __init__(
@@ -16,9 +18,10 @@ class OmnipredModule(LightningModule):
         compile: bool,
         input_tokenizer: Any,
         output_tokenizer: Any,
+        data_dir: Path,
+        task_names: str,
         numeric_interval: int = 50,
         scheduler=None,
-        task_names: Optional[str] = None,
     ) -> None:
         super().__init__()
 
@@ -26,10 +29,8 @@ class OmnipredModule(LightningModule):
         self.model = model
         self.input_tokenizer = input_tokenizer
         self.output_tokenizer = output_tokenizer
-        if "," in task_names:
-            self.task_names = list(task_names.split(","))
-        else:
-            self.task_names = [task_names]
+        
+        self.task_names = load_task_names(task_names, data_dir)
 
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()

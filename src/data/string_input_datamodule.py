@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.data.distributed import DistributedSampler
 
 from src.data.components.text_value_dataset import TextValueDataset
-
+from src.utils.io_utils import load_task_names
 
 class StringXYDataModule(LightningDataModule):
 
@@ -58,10 +58,7 @@ class StringXYDataModule(LightningDataModule):
 
         if not self.data_train or not self.data_val:
             # TODO: Load data as a single function
-            if "," in self.hparams.task_names:
-                task_names = list(self.hparams.task_names.split(","))
-            else:
-                task_names = [self.hparams.task_names]
+            task_names = load_task_names(self.hparams.task_names, self.hparams.data_dir)
 
             x_values = []
             y_values = []

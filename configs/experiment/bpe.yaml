@@ -31,13 +31,13 @@ model:
   cat_metadata: true
 
   regressor:
-    input_dim: 768
+    input_dim: 384
   from_pretrained: true
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: embed_regress_multitask_m_x_cat
+task_name: embed_regress_multitask_bpe
 
 logger:
   wandb:

@@ -15,96 +15,96 @@ from src.tasks.mcts_transfer_task.utils import load_mcts_transfer_data
 data_dir = root / "data"
 os.makedirs(data_dir, exist_ok=True)
 
-# # Generate Design-Bench data
-# for task_name in TASKNAMES_DB:
-#     print(task_name)
-#     task, metadata, data = create_task_db(task_name)
+# Generate Design-Bench data
+for task_name in TASKNAMES_DB:
+    print(task_name)
+    task, metadata, data = create_task_db(task_name)
 
-#     task_data = []
-#     for x, y in zip(data.to_string(), task.y_np):
-#         task_data.append({"x": x, "y": y.item()})
+    task_data = []
+    for x, y in zip(data.to_string(), task.y_np):
+        task_data.append({"x": x, "y": y.item()})
 
-#     output_file = f"{data_dir}/{task_name}.json"
-#     with open(output_file, "w") as f:
-#         json.dump(task_data, f, indent=2)
+    output_file = f"{data_dir}/{task_name}.json"
+    with open(output_file, "w") as f:
+        json.dump(task_data, f, indent=2)
 
-#     metadata_file = f"{data_dir}/{task_name}.metadata"
-#     with open(metadata_file, "w") as f:
-#         f.write(metadata.to_string())
+    metadata_file = f"{data_dir}/{task_name}.metadata"
+    with open(metadata_file, "w") as f:
+        f.write(metadata.to_string())
 
-# # Generate SOO-Bench data
-# for benchmark_id in [2, 3, 4, 6]:
-#     task_desc = f"gtopx_data_{benchmark_id}_1"
-#     assert task_desc in TASKNAMES_SB
-#     print(task_desc)
+# Generate SOO-Bench data
+for benchmark_id in [2, 3, 4, 6]:
+    task_desc = f"gtopx_data_{benchmark_id}_1"
+    assert task_desc in TASKNAMES_SB
+    print(task_desc)
 
-#     task, metadata, data = create_task_sb(
-#         "gtopx_data", benchmark_id, 1, low=25, high=75
-#     )
-#     # such dataset settings follow Section 6 Para 1 in SOO-Bench paper
-#     # Link: https://openreview.net/pdf?id=bqf0aCF3Dd
+    task, metadata, data = create_task_sb(
+        "gtopx_data", benchmark_id, 1, low=25, high=75
+    )
+    # such dataset settings follow Section 6 Para 1 in SOO-Bench paper
+    # Link: https://openreview.net/pdf?id=bqf0aCF3Dd
 
-#     task_data = []
-#     for x, y in zip(data.to_string(), task.y_np):
-#         task_data.append({"x": x, "y": y.item()})
+    task_data = []
+    for x, y in zip(data.to_string(), task.y_np):
+        task_data.append({"x": x, "y": y.item()})
 
-#     output_file = f"{data_dir}/{task_desc}.json"
-#     with open(output_file, "w") as f:
-#         json.dump(task_data, f, indent=2)
+    output_file = f"{data_dir}/{task_desc}.json"
+    with open(output_file, "w") as f:
+        json.dump(task_data, f, indent=2)
 
-#     metadata_file = f"{data_dir}/{task_desc}.metadata"
-#     with open(metadata_file, "w") as f:
-#         f.write(metadata.to_string())
+    metadata_file = f"{data_dir}/{task_desc}.metadata"
+    with open(metadata_file, "w") as f:
+        f.write(metadata.to_string())
 
-# # Generate BBOB data from MCTS-Transfer paper
-# data_dict = load_mcts_transfer_data(data_dir, "bbob")
-# for search_space_id, search_space_data in data_dict.items():
-#     # Read function seeds
-#     search_space_seeds = []
-#     for dataset_id in search_space_data.keys():
-#         search_space_seeds.append(eval(dataset_id.split("+")[2]))
+# Generate BBOB data from MCTS-Transfer paper
+data_dict = load_mcts_transfer_data(data_dir, "bbob")
+for search_space_id, search_space_data in data_dict.items():
+    # Read function seeds
+    search_space_seeds = []
+    for dataset_id in search_space_data.keys():
+        search_space_seeds.append(eval(dataset_id.split("+")[2]))
 
-#     for seed in search_space_seeds:
-#         task, metadata, data = create_task_bbob(search_space_id, data_dir, seed)
-#         task_desc = f"{search_space_id}_{seed}"
+    for seed in search_space_seeds:
+        task, metadata, data = create_task_bbob(search_space_id, data_dir, seed)
+        task_desc = f"{search_space_id}_{seed}"
 
-#         task_data = []
-#         for x, y in zip(data.to_string(), task.y_np):
-#             task_data.append({"x": x, "y": y.item()})
+        task_data = []
+        for x, y in zip(data.to_string(), task.y_np):
+            task_data.append({"x": x, "y": y.item()})
 
-#         output_file = f"{data_dir}/{task_desc}.json"
-#         with open(output_file, "w") as f:
-#             json.dump(task_data, f, indent=2)
+        output_file = f"{data_dir}/{task_desc}.json"
+        with open(output_file, "w") as f:
+            json.dump(task_data, f, indent=2)
 
-#         metadata_file = f"{data_dir}/{task_desc}.metadata"
-#         with open(metadata_file, "w") as f:
-#             f.write(metadata.to_string())
+        metadata_file = f"{data_dir}/{task_desc}.metadata"
+        with open(metadata_file, "w") as f:
+            f.write(metadata.to_string())
 
-# # Generate real_world data from MCTS-Transfer paper
-# data_dict = load_mcts_transfer_data(data_dir, "real_world")
-# for search_space_id, search_space_data in data_dict.items():
-#     # Read function seeds
-#     search_space_seeds = []
-#     for dataset_id in search_space_data.keys():
-#         seed = eval(dataset_id.split("+")[2])
-#         if seed not in search_space_seeds:
-#             search_space_seeds.append(seed)
+# Generate real_world data from MCTS-Transfer paper
+data_dict = load_mcts_transfer_data(data_dir, "real_world")
+for search_space_id, search_space_data in data_dict.items():
+    # Read function seeds
+    search_space_seeds = []
+    for dataset_id in search_space_data.keys():
+        seed = eval(dataset_id.split("+")[2])
+        if seed not in search_space_seeds:
+            search_space_seeds.append(seed)
 
-#     for seed in search_space_seeds:
-#         task, metadata, data = create_task_real_world(search_space_id, data_dir, seed)
-#         task_desc = f"{search_space_id}_{seed}"
+    for seed in search_space_seeds:
+        task, metadata, data = create_task_real_world(search_space_id, data_dir, seed)
+        task_desc = f"{search_space_id}_{seed}"
 
-#         task_data = []
-#         for x, y in zip(data.to_string(), task.y_np):
-#             task_data.append({"x": x, "y": y.item()})
+        task_data = []
+        for x, y in zip(data.to_string(), task.y_np):
+            task_data.append({"x": x, "y": y.item()})
 
-#         output_file = f"{data_dir}/{task_desc}.json"
-#         with open(output_file, "w") as f:
-#             json.dump(task_data, f, indent=2)
+        output_file = f"{data_dir}/{task_desc}.json"
+        with open(output_file, "w") as f:
+            json.dump(task_data, f, indent=2)
 
-#         metadata_file = f"{data_dir}/{task_desc}.metadata"
-#         with open(metadata_file, "w") as f:
-#             f.write(metadata.to_string())
+        metadata_file = f"{data_dir}/{task_desc}.metadata"
+        with open(metadata_file, "w") as f:
+            f.write(metadata.to_string())
 
 data_dict = load_mcts_transfer_data(data_dir, "hpob-data")
 for search_space_id, search_space_data in data_dict.items():

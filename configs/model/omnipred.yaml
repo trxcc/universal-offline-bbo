@@ -13,7 +13,6 @@ model:
 
 input_tokenizer: ${data.input_tokenizer}
 output_tokenizer: ${data.output_tokenizer}
-task_names: ${data.task_names}
 
 # optimizer:
 #   _target_: transformers.optimization.Adafactor
@@ -39,3 +38,5 @@ scheduler:
   num_training_steps: ${trainer.max_epochs} 
 
 compile: true
+data_dir: ${data.data_dir}
+task_names: ${data.task_names}

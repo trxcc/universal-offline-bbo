@@ -212,81 +212,82 @@ class OmnipredModule(LightningModule):
         return torch.tensor(pred_numbers, device=self.device).reshape(-1, 1)
 
     def compute_numeric_metrics(self, dataloader, prefix="val"):
-        self.eval()
-        numeric_mse = MeanMetric().to(self.device)
-        rank_corr = {
-            task: SpearmanCorrCoef().to(self.device) for task in self.task_names
-        }
+        pass
+        # self.eval()
+        # numeric_mse = MeanMetric().to(self.device)
+        # rank_corr = {
+        #     task: SpearmanCorrCoef().to(self.device) for task in self.task_names
+        # }
 
-        task_preds = {task: [] for task in self.task_names}
-        task_targets = {task: [] for task in self.task_names}
-        with torch.no_grad():
-            for batch in dataloader:
-                input_ids = batch["input_ids"].to(self.device)
-                attention_mask = batch["attention_mask"].to(self.device)
-                labels = batch["labels"].to(self.device)
-                task_names = batch["task_name"]
-                pred_numbers = self.generate_numbers(
-                    input_ids=input_ids, attention_mask=attention_mask
-                )
+        # task_preds = {task: [] for task in self.task_names}
+        # task_targets = {task: [] for task in self.task_names}
+        # with torch.no_grad():
+        #     for batch in dataloader:
+        #         input_ids = batch["input_ids"].to(self.device)
+        #         attention_mask = batch["attention_mask"].to(self.device)
+        #         labels = batch["labels"].to(self.device)
+        #         task_names = batch["task_name"]
+        #         pred_numbers = self.generate_numbers(
+        #             input_ids=input_ids, attention_mask=attention_mask
+        #         )
 
-                target_numbers = []
-                for label in labels:
-                    try:
-                        num = float(
-                            self.output_tokenizer.decode(
-                                label[label != -100], skip_special_tokens=True
-                            )
-                        )
-                        target_numbers.append(num)
-                    except ValueError:
-                        target_numbers.append(float("-inf"))
+        #         target_numbers = []
+        #         for label in labels:
+        #             try:
+        #                 num = float(
+        #                     self.output_tokenizer.decode(
+        #                         label[label != -100], skip_special_tokens=True
+        #                     )
+        #                 )
+        #                 target_numbers.append(num)
+        #             except ValueError:
+        #                 target_numbers.append(float("-inf"))
 
-                target_numbers = torch.tensor(
-                    target_numbers, device=self.device
-                ).reshape(-1, 1)
+        #         target_numbers = torch.tensor(
+        #             target_numbers, device=self.device
+        #         ).reshape(-1, 1)
 
-                numeric_mse(
-                    F.mse_loss(pred_numbers.squeeze(), target_numbers.squeeze())
-                )
+        #         numeric_mse(
+        #             F.mse_loss(pred_numbers.squeeze(), target_numbers.squeeze())
+        #         )
 
-                for i, task_name in enumerate(task_names):
-                    task_preds[task_name].append(pred_numbers[i])
-                    task_targets[task_name].append(target_numbers[i])
+        #         for i, task_name in enumerate(task_names):
+        #             task_preds[task_name].append(pred_numbers[i])
+        #             task_targets[task_name].append(target_numbers[i])
 
-        self.log(
-            f"{prefix}/numeric_mse",
-            numeric_mse.compute(),
-            on_epoch=True,
-            prog_bar=True,
-            metric_attribute=f"{prefix}/numeric_mse",
-        )
-        all_corrs = []
-        for task_name in self.task_names:
-            task_pred = torch.stack(task_preds[task_name])
-            task_target = torch.stack(task_targets[task_name])
-            print(task_pred.shape, task_target.shape)
-            task_rank_corr = rank_corr[task_name](
-                task_pred.squeeze(), task_target.squeeze()
-            )
-            all_corrs.append(task_rank_corr)
-            self.log(
-                f"{prefix}/rank_corr_{task_name}",
-                task_rank_corr,
-                on_epoch=True,
-                sync_dist=True,
-                prog_bar=False,
-                metric_attribute=f"{prefix}/rank_corr_{task_name}",
-            )
+        # self.log(
+        #     f"{prefix}/numeric_mse",
+        #     numeric_mse.compute(),
+        #     on_epoch=True,
+        #     prog_bar=True,
+        #     metric_attribute=f"{prefix}/numeric_mse",
+        # )
+        # all_corrs = []
+        # for task_name in self.task_names:
+        #     task_pred = torch.stack(task_preds[task_name])
+        #     task_target = torch.stack(task_targets[task_name])
+        #     print(task_pred.shape, task_target.shape)
+        #     task_rank_corr = rank_corr[task_name](
+        #         task_pred.squeeze(), task_target.squeeze()
+        #     )
+        #     all_corrs.append(task_rank_corr)
+        #     self.log(
+        #         f"{prefix}/rank_corr_{task_name}",
+        #         task_rank_corr,
+        #         on_epoch=True,
+        #         sync_dist=True,
+        #         prog_bar=False,
+        #         metric_attribute=f"{prefix}/rank_corr_{task_name}",
+        #     )
 
-        avg_corr = torch.stack(all_corrs).mean()
-        self.log(
-            f"{prefix}/rank_corr_avg",
-            avg_corr,
-            on_epoch=True,
-            sync_dist=True,
-            prog_bar=True,
-            metric_attribute=f"{prefix}/rank_corr_avg",
-        )
+        # avg_corr = torch.stack(all_corrs).mean()
+        # self.log(
+        #     f"{prefix}/rank_corr_avg",
+        #     avg_corr,
+        #     on_epoch=True,
+        #     sync_dist=True,
+        #     prog_bar=True,
+        #     metric_attribute=f"{prefix}/rank_corr_avg",
+        # )
 
-        self.train()
+        # self.train()

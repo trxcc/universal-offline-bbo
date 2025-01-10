@@ -1,7 +1,8 @@
 from typing import Any, Callable, List, Optional, Tuple
 
 import torch
-from blt_tokenizer import ByteTokenizer
+
+# from blt_tokenizer import ByteTokenizer
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -61,15 +62,15 @@ class EntropyDataset(Dataset):
         }
 
 
-if __name__ == "__main__":
-    texts = ["hello", "world", "python"]
-    values = [1.0, 2.5, 3.7]
-    metadatas = ["meta1", "meta2", "meta3"]
-    task_names = ["task1", "task2", "task3"]
+# if __name__ == "__main__":
+#     texts = ["hello", "world", "python"]
+#     values = [1.0, 2.5, 3.7]
+#     metadatas = ["meta1", "meta2", "meta3"]
+#     task_names = ["task1", "task2", "task3"]
 
-    dataset = EntropyDataset(
-        texts, values, ByteTokenizer(), metadatas=metadatas, task_names=task_names
-    )
-    dataloader = DataLoader(dataset, batch_size=2)
-    for batch in dataloader:
-        print(batch)
+#     dataset = EntropyDataset(
+#         texts, values, ByteTokenizer(), metadatas=metadatas, task_names=task_names
+#     )
+#     dataloader = DataLoader(dataset, batch_size=2)
+#     for batch in dataloader:
+#         print(batch)

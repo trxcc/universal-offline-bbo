@@ -197,4 +197,4 @@ if __name__ == "__main__":
 # logs/omnipred_test/runs/2025-01-03_22-07-17_seed42/Universal/rn1x1r91/checkpoints/test.ckpt
 # logs/omnipred_test/runs/2025-01-04_22-59-00_seed42/Universal/ur6l0g7m/checkpoints/test.ckpt
 # logs/omnipred_test/runs/2025-01-05_17-11-07_seed42/Universal/2064go0t/checkpoints/test.ckpt
-# logs/omnipred/runs/2025-01-05_20-57-43_seed42/checkpoints/epoch_165.ckpt
+# logs/omnipred_24m/runs/2025-01-10_01-29-12_seed42/checkpoints/last.ckpt

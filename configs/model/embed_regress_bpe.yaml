@@ -1,13 +1,5 @@
 _target_: src.models.embed_regressor_module.EmbedRegressorModule
 
-tokenizer:
-  _target_: transformers.AutoTokenizer.from_pretrained
-  pretrained_model_name_or_path: gpt2
-  padding_side: right
-  model_max_length: 512
-  pad_token: "<|endoftext|>"  
-  requires_grad: false
-
 embedder:
   _target_: transformers.GPT2Model
   config:

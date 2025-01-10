@@ -21,18 +21,26 @@ seed: 42
 data:
   task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
   batch_size: 128
+  tokenizer_max_length: 400
+  cat_metadata: true
+
+  tokenizer:
+    _target_: transformers.AutoTokenizer.from_pretrained
+    pretrained_model_name_or_path: gpt2
+    padding_side: right
+    model_max_length: 512
+    pad_token: "<|endoftext|>"  
+    requires_grad: false
 
 trainer:
   min_epochs: 2
   max_epochs: 200
 
 model:
-  tokenizer_max_length: 400
-  cat_metadata: true
 
   regressor:
     input_dim: 384
-  from_pretrained: true
+  from_pretrained: false
 
 task:
   task_name: Superconductor-RandomForest-v0
@@ -43,5 +51,5 @@ logger:
   wandb:
     tags: ${tags}
     project: "Universal"
-    group: "embed_regress_multitask_m_x_cat"
+    group: ${task_name}
     job_type: "train"

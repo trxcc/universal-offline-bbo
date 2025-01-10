@@ -3,12 +3,11 @@ import os
 from typing import Any, Optional
 
 import torch
-from components.blt_tokenizer import ByteTokenizer
-from components.entropy_dataset import EntropyDataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.data.distributed import DistributedSampler
 
+from src.data.components.entropy_dataset import EntropyDataset
 from src.utils.io_utils import load_task_names
 
 
@@ -154,17 +153,3 @@ class EntropyDataModule(LightningDataModule):
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
         )
-
-
-if __name__ == "__main__":
-    datamodule = EntropyDataModule(
-        task_names="AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0",
-        data_dir="data/entropy",
-        tokenizer=ByteTokenizer(),
-        tokenizer_max_length=128,
-    )
-    datamodule.setup()
-    dataloader = datamodule.train_dataloader()
-    for batch in dataloader:
-        print(batch)
-        assert False

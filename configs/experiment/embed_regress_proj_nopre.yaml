@@ -52,11 +52,11 @@ model:
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: embed_regress_multitask_m_emb
+task_name: embed_regress_multitask_m_emb_from_scratch
 
 logger:
   wandb:
     tags: ${tags}
     project: "Universal"
-    group: "embed_regress_multitask_m_emb"
+    group: ${task_name}
     job_type: "train"

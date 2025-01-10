@@ -23,7 +23,7 @@ class ByteTokenizer(Tokenizer):
         self.eos_id = 257
         self.n_words = 258
 
-    def encode(self, s: str, add_bos: bool = False, add_eos: bool = False):
+    def encode(self, s: str, add_bos: bool = True, add_eos: bool = True):
         tokens = [self.bos_id] * add_bos + list(s.encode()) + [self.eos_id] * add_eos
         return tokens
 

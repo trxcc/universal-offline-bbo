@@ -27,15 +27,17 @@ trainer:
   min_epochs: 2
   max_epochs: 2
   
+model:
+  numeric_interval: 200
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: omnipred
+task_name: omnipred_24m
 
 logger:
   wandb:
     tags: ${tags}
     project: "Universal"
-    group: "omnipred"
+    group: ${task_name}
     job_type: "train"

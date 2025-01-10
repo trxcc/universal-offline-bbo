@@ -1,8 +1,6 @@
-from typing import Callable, List
-
 import numpy as np
 import torch
-from lightning import LightningModule
+from lightning import LightningDataModule, LightningModule
 
 from src.models.omnipred_module import OmnipredModule
 from src.tasks.base import OfflineBBOTask
@@ -44,7 +42,7 @@ def omnipred_fitness_function_string(
 
 @torch.no_grad()
 def model_fitness_function_string(
-    x: np.ndarray, m: str, model: LightningModule
+    x: np.ndarray, m: str, model: LightningModule, datamodule: LightningDataModule
 ) -> np.ndarray:
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
     assert len(x.shape) == 1 or len(x.shape) == 2
@@ -61,7 +59,28 @@ def model_fitness_function_string(
         return res_str
 
     x_str = [sol2str(x0) for x0 in x]
-    y_np = model(x_str, ms).cpu().numpy()
+    if datamodule.hparams.cat_metadata:
+        x_str = [f"{x0}. {m0}" for x0, m0 in zip(x_str, ms)]
+    x_tokens = datamodule.hparams.tokenizer(
+        x_str,
+        padding="max_length",
+        max_length=datamodule.hparams.tokenizer_max_length,
+        truncation=True,
+        return_tensors="pt",
+    )
+    for k, v in x_tokens.items():
+        x_tokens[k] = v.squeeze()
+
+    m_tokens = datamodule.hparams.tokenizer(
+        ms,
+        padding="max_length",
+        max_length=datamodule.hparams.tokenizer_max_length,
+        truncation=True,
+        return_tensors="pt",
+    )
+    for k, v in m_tokens.items():
+        m_tokens[k] = v.squeeze()
+    y_np = model(x_tokens, m_tokens).cpu().numpy()
     assert len(y_np) == batch_size
 
     return y_np

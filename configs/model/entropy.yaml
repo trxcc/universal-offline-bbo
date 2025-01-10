@@ -1,0 +1,29 @@
+_target_: src.models.entropy_module.EntropyModule
+
+# tokenizer:
+#   _target_: src.data.components.blt_tokenizer.ByteTokenizer
+  
+model: 
+  _target_: src.models.components.entropy_model.ByteTransformer
+  d_model: 256
+  nhead: 4
+  num_layers: 6
+  dim_feedforward: 512
+  dropout: 0.1
+
+model_optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.0003
+  weight_decay: 0.00001
+
+scheduler: 
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  _partial_: true
+  eta_min: 0
+  T_max: ${trainer.max_epochs}
+
+compile: true
+
+data_dir: ${data.data_dir}
+task_names: ${data.task_names}

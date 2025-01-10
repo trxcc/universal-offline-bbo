@@ -14,7 +14,7 @@ class ByteTransformer(nn.Module):
         self.embedding = nn.Embedding(258, d_model)
 
         # Positional encoding
-        self.pos_encoder = nn.Parameter(torch.zeros(1, 512, d_model))
+        self.pos_encoder = nn.Parameter(torch.zeros(1, 2048, d_model))
 
         # Transformer encoder
         encoder_layer = nn.TransformerEncoderLayer(

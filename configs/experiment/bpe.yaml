@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: string_xy
-  - override /model: embed_regress_bpe
+  - override /model: embed_regress_t5
   - override /callbacks: default
   - override /trainer: default
   - override /logger: wandb
@@ -19,7 +19,7 @@ tags: ["universal", "embed_regress", "multi_task"]
 seed: 42
 
 data:
-  task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  task_names: ALL
   batch_size: 128
   tokenizer_max_length: 400
   cat_metadata: true
@@ -37,9 +37,10 @@ trainer:
   max_epochs: 200
 
 model:
-
-  regressor:
-    input_dim: 384
+  embedder:
+    config:
+      vocab_size: 50257
+      
   from_pretrained: false
 
 task:

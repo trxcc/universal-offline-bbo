@@ -34,9 +34,6 @@ trainer:
   max_epochs: 200
 
 model:
-
-  regressor:
-    input_dim: 512
   from_pretrained: false
 
 task:

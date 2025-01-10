@@ -10,7 +10,7 @@ class ByteTransformer(nn.Module):
     ):
         super().__init__()
 
-        # 256种可能的byte值的embedding
+        # Embeddings for 256 possible bytes
         self.embedding = nn.Embedding(258, d_model)
 
         # Positional encoding

@@ -2,23 +2,24 @@ _target_: src.models.embed_regressor_module.EmbedRegressorModule
 
   
 embedder:
-  _target_: transformers.T5EncoderModel.from_pretrained
-  pretrained_model_name_or_path: google-t5/t5-small
-  # config:
-  #   _target_: transformers.T5Config
-  #   d_model: 384
-  #   d_ff: 1536  
-  #   num_layers: 5
-  #   num_heads: 6
-  #   vocab_size: 32128
-  #   decoder_start_token_id: null
-  #   use_cache: false
+  _target_: transformers.T5EncoderModel #.from_pretrained
+  # pretrained_model_name_or_path: google-t5/t5-small
+  config:
+    _target_: transformers.T5Config
+    d_model: 384
+    d_ff: 1536  
+    num_layers: 6
+    num_heads: 6
+    vocab_size: 32128
+    max_position_embeddings: 512
+    decoder_start_token_id: null
+    use_cache: false
       
-embedder_output_dim: 512
+embedder_output_dim: ${model.embedder.config.d_model}
 
 regressor:
   _target_: src.models.components.mlp.SimpleMLP
-  input_dim: 512
+  input_dim: ${model.embedder_output_dim}
   hidden_dim: [2048, 2048]
   output_dim: 1
 

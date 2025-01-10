@@ -1,7 +1,9 @@
 from typing import Any, Callable, List, Optional, Tuple
 
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
+from blt_tokenizer import ByteTokenizer
+
 import torch.nn.functional as F
 
 class BLTDataset(Dataset):
@@ -74,15 +76,17 @@ class BLTDataset(Dataset):
             metadata_tokens[k] = v.squeeze()
 
         task_names = self.task_names[idx]
+        entropy_patch_start_idx = self.get_entropy_patch_start_idx(idx)
 
         return {
             "text": text_tokens,
             "value": value.squeeze(),
             "metadata": metadata_tokens,
             "task_names": task_names,
+            "entropy_patch_start_idx": entropy_patch_start_idx,
         }
     
-    def get_entropy_patch(self, idx: int) -> torch.Tensor:
+    def get_entropy_patch_start_idx(self, idx: int) -> torch.Tensor:
         text = self.texts[idx]
         text_tokens, pad_length, tokens_length = self._tokenize_and_pad(text)
         logits = self.entropy_model(text_tokens)
@@ -90,7 +94,15 @@ class BLTDataset(Dataset):
                 : tokens_length - pad_length, :
             ]
         entropy = self.entropy(logits)
-        
+        start_idx = self.get_entropy_patch_start_idx(entropy, self.entropy_threshold)
+        return start_idx
+
+    def get_entropy_patch_start_idx(self, entropy: torch.Tensor, threshold: float) -> torch.Tensor:
+        start_idx = torch.zeros_like(entropy, dtype=torch.bool)
+        start_idx[:, 0] = True
+        diff = entropy[:, 1:] - entropy[:, :-1]
+        start_idx[:, 1:] = diff > threshold
+        return start_idx
 
 
     def entropy(self, logits: torch.Tensor) -> torch.Tensor:
@@ -101,5 +113,12 @@ class BLTDataset(Dataset):
 if __name__ == "__main__":
     texts = ["hello", "world", "python"]
     values = [1.0, 2.5, 3.7]
+    metadatas = ["meta1", "meta2", "meta3"]
+    task_names = ["task1", "task2", "task3"]
 
-    dataset = TextValueDataset(texts, values)
+    dataset = BLTDataset(
+        texts, values, ByteTokenizer(), metadatas=metadatas, task_names=task_names
+    )
+    dataloader = DataLoader(dataset, batch_size=2)
+    for batch in dataloader:
+        print(batch)

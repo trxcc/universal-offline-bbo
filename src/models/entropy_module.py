@@ -137,4 +137,3 @@ class EntropyModule(LightningModule):
             optimizers = [optimizer]
 
         return optimizers
-

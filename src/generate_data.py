@@ -28,7 +28,7 @@ for task_name in TASKNAMES_DB:
 
     task_data = []
     for x, y in zip(data.to_string(), task.y_np):
-        task_data.append({"x": x, "y": y.item()})
+        task_data.append({"x": x, "y": round(y.item(), 4)})
 
     output_file = f"{data_dir}/{task_name}.json"
     with open(output_file, "w") as f:
@@ -52,7 +52,7 @@ for benchmark_id in [2, 3, 4, 6]:
 
     task_data = []
     for x, y in zip(data.to_string(), task.y_np):
-        task_data.append({"x": x, "y": y.item()})
+        task_data.append({"x": x, "y": round(y.item(), 4)})
 
     output_file = f"{data_dir}/{task_desc}.json"
     with open(output_file, "w") as f:
@@ -76,7 +76,7 @@ for search_space_id, search_space_data in data_dict.items():
 
         task_data = []
         for x, y in zip(data.to_string(), task.y_np):
-            task_data.append({"x": x, "y": y.item()})
+            task_data.append({"x": x, "y": round(y.item(), 4)})
 
         output_file = f"{data_dir}/{task_desc}.json"
         with open(output_file, "w") as f:
@@ -102,7 +102,7 @@ for search_space_id, search_space_data in data_dict.items():
 
         task_data = []
         for x, y in zip(data.to_string(), task.y_np):
-            task_data.append({"x": x, "y": y.item()})
+            task_data.append({"x": x, "y": round(y.item(), 4)})
 
         output_file = f"{data_dir}/{task_desc}.json"
         with open(output_file, "w") as f:
@@ -128,7 +128,7 @@ for search_space_id, search_space_data in data_dict.items():
 
         task_data = []
         for x, y in zip(data.to_string(), task.y_np):
-            task_data.append({"x": x, "y": y.item()})
+            task_data.append({"x": x, "y": round(y.item(), 4)})
 
         output_file = f"{data_dir}/{task_desc}.json"
         with open(output_file, "w") as f:
@@ -145,7 +145,7 @@ for task_name in TASKNAMES_PLACE:
 
     task_data = []
     for x, y in zip(data.to_string(), task.y_np):
-        task_data.append({"x": x, "y": y.item()})
+        task_data.append({"x": x, "y": round(y.item(), 4)})
 
     output_file = f"{data_dir}/{task_name}.json"
     with open(output_file, "w") as f:

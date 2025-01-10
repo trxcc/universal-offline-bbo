@@ -3,6 +3,8 @@ from typing import Any, Callable, List, Optional, Tuple
 import torch
 from torch.utils.data import Dataset
 
+from src.data.data_utils import normalize_ys_from_different_tasks
+
 
 class TextValueDataset(Dataset):
     def __init__(
@@ -16,8 +18,9 @@ class TextValueDataset(Dataset):
         task_names: Optional[List[str]] = None,
     ) -> None:
         self.texts = texts
-        self.values = torch.tensor(values, dtype=torch.float32)
-        self.values = (self.values - self.values.mean(dim=0)) / self.values.std(dim=0)
+        # self.values = torch.tensor(values, dtype=torch.float32)
+        # self.values = (self.values - self.values.mean(dim=0)) / self.values.std(dim=0)
+        self.values = normalize_ys_from_different_tasks(values, task_names)
         self.tokenizer = tokenizer
         self.tokenizer_max_length = tokenizer_max_length
         self.metadatas = metadatas

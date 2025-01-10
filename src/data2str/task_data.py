@@ -24,7 +24,7 @@ class TaskData(ABC):
 class ContinuousTaskData(TaskData):
     def to_string(self) -> List[List[str]]:
         return [
-            [f"x{i}: {value.item()}" for i, value in enumerate(data)]
+            [f"x{i}: {value.item():.4f}" for i, value in enumerate(data)]
             for data in self.data
         ]
 

@@ -22,26 +22,23 @@
 
 # print(tokenizer.batch_decode(output_sequences, skip_special_tokens=True))
 
-from transformers import T5Model, T5EncoderModel, T5Tokenizer
+from transformers import T5EncoderModel, T5Model, T5Tokenizer
 
 # model = T5Model.from_pretrained("t5-small")
 model = T5EncoderModel.from_pretrained("t5-small")
 tok = T5Tokenizer.from_pretrained("t5-small")
 
 enc = tok("some text", return_tensors="pt")
-print(enc['input_ids'].shape)
+print(enc["input_ids"].shape)
 emb = model.encoder(
-    input_ids=enc["input_ids"], 
-    attention_mask=enc["attention_mask"], 
-    return_dict=True).last_hidden_state
+    input_ids=enc["input_ids"], attention_mask=enc["attention_mask"], return_dict=True
+).last_hidden_state
 print(emb.shape)
 assert 0
 
 # forward pass through encoder only
 output = model.encoder(
-    input_ids=enc["input_ids"], 
-    attention_mask=enc["attention_mask"], 
-    return_dict=True
+    input_ids=enc["input_ids"], attention_mask=enc["attention_mask"], return_dict=True
 )
 # get the final hidden states
 emb = output.last_hidden_state

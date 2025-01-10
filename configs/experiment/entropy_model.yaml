@@ -6,7 +6,7 @@
 defaults:
   - override /data: entropy
   - override /model: entropy
-  - override /callbacks: default
+  - override /callbacks: entropy_model
   - override /trainer: default
   - override /logger: wandb
   - override /task: design_bench

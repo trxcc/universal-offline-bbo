@@ -77,6 +77,7 @@ def normalize_ys_from_different_tasks(
                 stats.rankdata(task_values.numpy()), dtype=torch.float32
             )
             bad_rank_percentiles = ranks[bad_idx] / len(task_values)
+            bad_rank_percentiles = torch.clamp(bad_rank_percentiles, 0.001, 0.999)
             bad_z_scores = torch.tensor(
                 stats.norm.ppf(bad_rank_percentiles.numpy()), dtype=torch.float32
             )

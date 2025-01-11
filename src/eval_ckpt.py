@@ -152,3 +152,5 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
+# logs/embed_regress_multitask_m_emb_from_scratch/runs/2025-01-10_00-05-41_seed42/checkpoints/last.ckpt
+# logs/omnipred_24m/runs/2025-01-10_01-29-12_seed42/checkpoints/last.ckpt

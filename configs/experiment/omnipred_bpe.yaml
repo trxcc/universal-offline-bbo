@@ -1,0 +1,53 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: omnipred
+  - override /model: omnipred
+  - override /callbacks: default
+  - override /trainer: default
+  - override /logger: wandb
+  - override /task: design_bench
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["universal", "omnipred", "test"]
+
+seed: 42
+
+data:
+  task_names: ALL
+  batch_size: 128
+
+  input_tokenizer:
+    _target_: transformers.AutoTokenizer.from_pretrained
+    pretrained_model_name_or_path: gpt2
+    padding_side: right
+    model_max_length: 512
+    pad_token: "<|endoftext|>"  
+    requires_grad: false
+
+trainer:
+  min_epochs: 2
+  max_epochs: 2
+  
+model:
+  model:
+    config:
+      vocab_size: 50257
+  numeric_interval: 200
+
+task:
+  task_name: Superconductor-RandomForest-v0
+
+task_name: omnipred_24m_bpe
+
+logger:
+  wandb:
+    tags: ${tags}
+    project: "Universal"
+    group: ${task_name}
+    job_type: "train"

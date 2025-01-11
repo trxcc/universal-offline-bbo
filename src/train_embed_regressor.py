@@ -11,7 +11,7 @@ from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
 
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
+root_dir = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
 # - adding project root dir to PYTHONPATH
@@ -30,6 +30,7 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 
 from src.searcher.base import BaseSearcher
+from src.tasks import get_tasks
 from src.tasks.base import OfflineBBOTask
 from src.utils import (
     RankedLogger,
@@ -41,6 +42,7 @@ from src.utils import (
     model_fitness_function_string,
     task_wrapper,
 )
+from src.utils.io_utils import load_task_names
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -123,25 +125,33 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
 
-        log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
-        with open(f"./data/{cfg.task.task_name}.metadata", "r") as f:
-            m = f.read()
-        searcher: BaseSearcher = hydra.utils.instantiate(
-            cfg.searcher,
-            task=task,
-            score_fn=lambda x: model_fitness_function_string(
-                x, m=m, model=model, datamodule=datamodule
-            ),
-            # universal-offline-bbo/logs/embed_regress_multitask_m_emb/runs/2024-12-30_00-28-09_seed42/checkpoints/last.ckpt
-        )
+        task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
+        tasks = get_tasks(task_names, root_dir=root_dir)
+        score_dict = {}
 
-        x_res = searcher.run()
-        score_dict = task.evaluate(x_res, return_normalized_y=True)
-        log.info("Final score statistics:")
-        for score_desc, score in score_dict.items():
-            log.info(f"{score_desc}: {score}")
-            for logger0 in logger:
-                logger0.log_metrics({score_desc: score}, step=1)
+        for task_name, task_instance in zip(task_names, tasks):
+            log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
+            with open(f"./data/{task_name}.metadata", "r") as f:
+                m = f.read()
+            searcher: BaseSearcher = hydra.utils.instantiate(
+                cfg.searcher,
+                task=task_instance,
+                score_fn=lambda x: model_fitness_function_string(
+                    x, m=m, model=model, datamodule=datamodule
+                ),
+            )
+
+            x_res = searcher.run()
+            tmp_dict = task_instance.evaluate(x_res, return_normalized_y=True)
+            res_dict = {}
+            for k, v in tmp_dict.items():
+                res_dict[f"{task_name}-{k}"] = v
+            score_dict.update(res_dict)
+            log.info("Final score statistics:")
+            for score_desc, score in res_dict.items():
+                log.info(f"{score_desc}: {score}")
+                for logger0 in logger:
+                    logger0.log_metrics({score_desc: score}, step=1)
 
         # trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         # log.info(f"Best ckpt path: {ckpt_path}")

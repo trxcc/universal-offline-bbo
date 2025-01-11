@@ -33,12 +33,26 @@ class ContinuousTaskData(TaskData):
 
 
 @dataclass
-class CategoricalTaskData(TaskData):
+class IntegerTaskData(TaskData):
+    def to_string(self) -> List[List[str]]:
+        return [
+            [f"x{i}: {int(value)}" for i, value in enumerate(data)]
+            for data in self.data
+        ]
+
+    def get_variable_values(self) -> Dict:
+        return {f"x{i}": int(value) for i, value in enumerate(self.data)}
+
+
+@dataclass
+class CategoricalTaskData(IntegerTaskData):
     def to_string(self) -> List[List[str]]:
         return [
             [f"x{i}: '{int(value)}'" for i, value in enumerate(data)]
             for data in self.data
         ]
 
-    def get_variable_values(self) -> Dict:
-        return {f"x{i}": int(value) for i, value in enumerate(self.data)}
+
+@dataclass
+class PermutationTaskData(IntegerTaskData):
+    pass

@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Optional, Tuple
 
-from src.data2str.task_data import ContinuousTaskData, TaskData
-from src.data2str.task_metadata import ContinuousTaskMetadata, TaskMetadata
+from src.data2str.task_data import IntegerTaskData, TaskData
+from src.data2str.task_metadata import IntegerTaskMetadata, TaskMetadata
 from src.tasks.base import OfflineBBOTask
 from src.tasks.bboplace_bench_task import BBOPlacementTask
 
@@ -41,11 +41,11 @@ def create_task(
     )
 
     xl, xu = task.bounds
-    metadata = ContinuousTaskMetadata(
+    metadata = IntegerTaskMetadata(
         input_dim=task.x_np.shape[1],
         bounds=[(l, u) for l, u in zip(xl, xu)],
         **TEXT_DESCRIPTIONS[task_desc],
     )
-    data = ContinuousTaskData(task.x_np)
+    data = IntegerTaskData(task.x_np)
 
     return task, metadata, data

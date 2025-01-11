@@ -61,3 +61,43 @@ class CategoricalTaskMetadata(TaskMetadata):
             task_str = f"{task_str}, description: '{self.description}'"
         task_str = f"{task_str}, objective: '{self.objective}'"
         return f"{task_str}. Data info: {data_str}"
+
+
+@dataclass
+class IntegerTaskMetadata(TaskMetadata):
+    bounds: List[Tuple[int, int]]
+
+    def get_variable_metadata(self) -> Dict:
+        return {
+            f"x{i}": {"type": "INTEGER", "bounds": self.bounds[i]}
+            for i in range(self.input_dim)
+        }
+
+    def to_string(self) -> str:
+        data_str = "; ".join(
+            [f"x{i}:INTEGER, {list(bound)}" for i, bound in enumerate(self.bounds)]
+        )
+        task_str = f"name: '{self.name}'"
+        if self.description:
+            task_str = f"{task_str}, description: '{self.description}'"
+        task_str = f"{task_str}, objective: '{self.objective}'"
+        return f"{task_str}. Data info: {data_str}"
+
+
+@dataclass
+class PermutationTaskMetadata(TaskMetadata):
+    size: int
+
+    def get_variable_metadata(self) -> Dict:
+        return {
+            f"x{i}": {"task": "PERMUTATION", "size": self.size}
+            for i in range(self.input_dim)
+        }
+
+    def to_string(self) -> str:
+        data_str = f"task:PERMUTATION, size:{self.size}"
+        task_str = f"name: '{self.name}'"
+        if self.description:
+            task_str = f"{task_str}, description: '{self.description}'"
+        task_str = f"{task_str}, objective: '{self.objective}'"
+        return f"{task_str}. Data info: {data_str}"

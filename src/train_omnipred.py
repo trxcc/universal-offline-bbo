@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 import hydra
 import lightning as L

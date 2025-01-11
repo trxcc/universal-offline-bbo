@@ -4,6 +4,8 @@ from typing import List, Union
 
 
 def load_task_names(task_names: Union[str, List[str]], data_dir: Path) -> List[str]:
+    if isinstance(task_names, list):
+        return task_names
     if "," in task_names:
         task_names = list(task_names.split(","))
     elif task_names == "ALL":

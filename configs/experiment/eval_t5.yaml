@@ -1,0 +1,49 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: string_xy
+  - override /model: embed_regress_t5
+  - override /callbacks: default
+  - override /trainer: default
+  - override /logger: wandb
+  - override /task: design_bench
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["universal", "embed_regress", "multi_task"]
+
+seed: 42
+
+data:
+  task_names: ALL
+  batch_size: 128
+  cat_metadata: true
+
+  tokenizer:
+    _target_: transformers.T5Tokenizer.from_pretrained
+    pretrained_model_name_or_path: google-t5/t5-small
+
+  tokenizer_max_length: 512
+
+trainer:
+  min_epochs: 2
+  max_epochs: 200
+
+model:
+  from_pretrained: false
+
+task:
+  task_name: Superconductor-RandomForest-v0
+
+task_name: embed_regress_t5_m_cat_from_scratch
+
+logger:
+  wandb:
+    tags: ${tags}
+    project: "Universal"
+    group: ${task_name}
+    job_type: "train"

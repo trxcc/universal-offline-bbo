@@ -7,17 +7,20 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.data.distributed import DistributedSampler
 
-from src.data.components.text_value_dataset import TextValueDataset
+from src.data.components.blt_dataset import BLTDataset
 from src.utils.io_utils import load_task_names
 
 
-class StringXYDataModule(LightningDataModule):
+class BLTDataModule(LightningDataModule):
 
     def __init__(
         self,
         task_names: str,
         *,
         tokenizer: Any,
+        entropy_model: Any,
+        entropy_model_checkpoint: str,
+        entropy_threshold: float = 0.5,
         tokenizer_max_length: int = 128,
         cat_metadata: bool = True,
         data_dir: str = "data/",
@@ -37,6 +40,9 @@ class StringXYDataModule(LightningDataModule):
         )
         self.tokenizer = tokenizer
         self.tokenizer_max_length = tokenizer_max_length
+        self.entropy_model = entropy_model
+        self.entropy_model_checkpoint = entropy_model_checkpoint
+        self.entropy_threshold = entropy_threshold
         self.save_hyperparameters(logger=False)
 
         # TODO: More flexible setting of transforms
@@ -88,11 +94,14 @@ class StringXYDataModule(LightningDataModule):
                     metadatas.extend([metadata for _ in range(len(xs))])
                 task_names_list.extend([task_name for _ in range(len(xs))])
 
-            dataset = TextValueDataset(
+            dataset = BLTDataset(
                 x_values,
                 y_values,
                 tokenizer=self.tokenizer,
                 tokenizer_max_length=self.tokenizer_max_length,
+                entropy_model=self.entropy_model,
+                entropy_model_checkpoint=self.entropy_model_checkpoint,
+                entropy_threshold=self.entropy_threshold,
                 concat_metadata=self.hparams.cat_metadata,
                 metadatas=metadatas,
                 task_names=task_names_list,

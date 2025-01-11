@@ -15,7 +15,6 @@ class BLTDataset(Dataset):
         values: List[float],
         tokenizer: Any,
         entropy_model: Any,
-        entropy_model_checkpoint: str,
         entropy_threshold: float,
         tokenizer_max_length: int = 2048,
         concat_metadata: bool = True,
@@ -28,7 +27,6 @@ class BLTDataset(Dataset):
         self.tokenizer = tokenizer
         self.tokenizer_max_length = tokenizer_max_length
         self.entropy_model = entropy_model
-        self.entropy_model.load_from_checkpoint(entropy_model_checkpoint)
         self.metadatas = metadatas
         self.task_names = task_names
         self.entropy_threshold = entropy_threshold
@@ -76,9 +74,14 @@ class BLTDataset(Dataset):
 
     def get_entropy_patch_start_idx(self, text: str) -> torch.Tensor:
         text_tokens, pad_length, tokens_length = self._tokenize_and_pad(text)
+        print("text_tokens shape", text_tokens.shape)
+        print("pad_length", pad_length)
+        print("tokens_length", tokens_length)
         logits = self.entropy_model.get_single_logits(text_tokens)
         logits = logits.reshape(-1, logits.shape[-1])[:tokens_length]
+        print("logits shape", logits.shape)
         entropy = self.entropy(logits)
+        print("entropy shape", entropy.shape)
         start_idx = self.get_entropy_patch_idx(entropy, self.entropy_threshold)
         return start_idx
 

@@ -1,4 +1,3 @@
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -51,3 +50,23 @@ class ByteTransformer(nn.Module):
         logits = self.fc_out(x)  # [batch_size, seq_len, 258]
 
         return logits
+
+    def get_single_logits(self, text_tokens: torch.Tensor) -> torch.Tensor:
+        text_tokens = text_tokens.unsqueeze(0)
+        logits = self(text_tokens)
+        logits = logits.reshape(-1, logits.shape[-1])
+        return logits
+
+    def load_from_checkpoint(self, checkpoint_path: str):
+        checkpoint = torch.load(checkpoint_path)
+        checkpoint = self.on_load_checkpoint(checkpoint)
+        self.load_state_dict(checkpoint["state_dict"])
+
+    def on_load_checkpoint(self, checkpoint: dict):
+        keys_list = list(checkpoint["state_dict"].keys())
+        for key in keys_list:
+            if "orig_mod." in key:
+                deal_key = key.replace("model._orig_mod.", "")
+                checkpoint["state_dict"][deal_key] = checkpoint["state_dict"][key]
+                del checkpoint["state_dict"][key]
+        return checkpoint

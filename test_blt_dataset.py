@@ -79,40 +79,42 @@ class BLTDataset(Dataset):
         logits = self.entropy_model.get_single_logits(text_tokens)
         logits = logits.reshape(-1, logits.shape[-1])
         entropy = self.entropy(logits)
-        start_idx = self.get_entropy_patch_idx(entropy, self.entropy_threshold, tokens_length)
+        start_idx = self.get_entropy_patch_idx(
+            entropy, self.entropy_threshold, tokens_length
+        )
         return start_idx
 
     def get_entropy_patch_idx(
         self, entropy: torch.Tensor, threshold: float, tokens_length: torch.Tensor
     ) -> torch.Tensor:
-    # entropy: [bsz, seq_len]
-    # tokens_length: [bsz, 1]
+        # entropy: [bsz, seq_len]
+        # tokens_length: [bsz, 1]
         entropy = entropy.unsqueeze(0)
         tokens_length = torch.tensor(tokens_length)
         tokens_length = tokens_length.unsqueeze(0)
         bsz, seq_len = entropy.shape
-    
-    # 初始化start_idx
+
+        # 初始化start_idx
         start_idx = torch.zeros_like(entropy, dtype=torch.bool)  # [bsz, seq_len]
         start_idx[:, 0] = True
 
-    # 计算差值并标记阈值点
+        # 计算差值并标记阈值点
         diff = entropy[:, 1:] - entropy[:, :-1]
         start_idx[:, 1:] = diff > threshold
-    
-    # 在tokens_length处标记结束
+
+        # 在tokens_length处标记结束
         batch_indices = torch.arange(bsz, device=entropy.device)
-        start_idx[batch_indices, tokens_length.squeeze(-1)-1] = True
-    
-    # 将bool tensor转为int64
+        start_idx[batch_indices, tokens_length.squeeze(-1) - 1] = True
+
+        # 将bool tensor转为int64
         start_idx_int = start_idx.long()  # [bsz, seq_len]
-    
-    # 计算累积和来获得patch索引
+
+        # 计算累积和来获得patch索引
         result = start_idx_int.cumsum(dim=1) - 1  # [bsz, seq_len]
         print(result)
         print(result.shape)
         assert False
-    
+
         return result
 
     def entropy(self, logits: torch.Tensor) -> torch.Tensor:

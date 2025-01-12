@@ -1,16 +1,16 @@
 import numpy as np
 from pymoo.algorithms.soo.nonconvex.ga import GA
-from pymoo.optimize import minimize
 from pymoo.operators.crossover.ox import OrderCrossover
 from pymoo.operators.mutation.inversion import InversionMutation
+from pymoo.optimize import minimize
 
 from src.searcher.base import BaseSearcher
 from src.searcher.pymoo_utils import (
     RandomReplacementMutation,
+    RoundingRepair,
+    StartFromZeroRepair,
     UniformCrossover,
     WrappedPymooProblem,
-    StartFromZeroRepair,
-    RoundingRepair,
 )
 
 

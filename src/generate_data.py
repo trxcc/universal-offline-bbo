@@ -7,6 +7,8 @@ root = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True
 
 from src.data2str.bboplace_bench_data import TASKNAMES as TASKNAMES_PLACE
 from src.data2str.bboplace_bench_data import create_task as create_task_place
+from src.data2str.co_data import TASKNAMES as TASKNAMES_CO
+from src.data2str.co_data import create_task as create_task_co
 from src.data2str.design_bench_data import TASKNAMES as TASKNAMES_DB
 from src.data2str.design_bench_data import create_task as create_task_db
 from src.data2str.mcts_transfer_data import (
@@ -71,6 +73,7 @@ for search_space_id, search_space_data in data_dict.items():
         search_space_seeds.append(eval(dataset_id.split("+")[2]))
 
     for seed in search_space_seeds:
+        print(f"{search_space_id}_{seed}")
         task, metadata, data = create_task_bbob(search_space_id, data_dir, seed)
         task_desc = f"{search_space_id}_{seed}"
 
@@ -97,6 +100,7 @@ for search_space_id, search_space_data in data_dict.items():
             search_space_seeds.append(seed)
 
     for seed in search_space_seeds:
+        print(f"{search_space_id}_{seed}")
         task, metadata, data = create_task_real_world(search_space_id, data_dir, seed)
         task_desc = f"{search_space_id}_{seed}"
 
@@ -121,6 +125,7 @@ for search_space_id, search_space_data in data_dict.items():
             dataset_ids.append(dataset_id)
 
     for dataset_id in dataset_ids:
+        print(f"HPOB_{search_space_id}_{dataset_id}")
         task, metadata, data = create_task_hpob(
             search_space_id, dataset_id, root_dir=data_dir, data_dir=data_dir
         )
@@ -142,6 +147,22 @@ for search_space_id, search_space_data in data_dict.items():
 for task_name in TASKNAMES_PLACE:
     print(task_name)
     task, metadata, data = create_task_place(task_name, root)
+
+    task_data = []
+    for x, y in zip(data.to_string(), task.y_np):
+        task_data.append({"x": x, "y": round(y.item(), 4)})
+
+    output_file = f"{data_dir}/{task_name}.json"
+    with open(output_file, "w") as f:
+        json.dump(task_data, f, indent=2)
+
+    metadata_file = f"{data_dir}/{task_name}.metadata"
+    with open(metadata_file, "w") as f:
+        f.write(metadata.to_string())
+
+for task_name in TASKNAMES_CO:
+    print(task_name)
+    task, metadata, data = create_task_co(task_name, root / "data")
 
     task_data = []
     for x, y in zip(data.to_string(), task.y_np):

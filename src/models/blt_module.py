@@ -5,14 +5,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 from transformers.tokenization_utils_base import BatchEncoding
 
 from src.utils import RankedLogger
 from src.utils.io_utils import load_task_names
-
-import torch.nn.functional as F
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -111,7 +110,12 @@ class BLTEmbedModule(LightningModule):
             emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
         return emb_m
 
-    def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding], patch_ids: Tuple[BatchEncoding]) -> torch.Tensor:
+    def forward(
+        self,
+        x: Tuple[BatchEncoding],
+        m: Tuple[BatchEncoding],
+        patch_ids: Tuple[BatchEncoding],
+    ) -> torch.Tensor:
         # assert x.dtype in [torch.long, torch.int64]
         # assert entropy_patch_start_idx.dtype in [torch.long, torch.int64]
         # assert torch.all(entropy_patch_start_idx >= 0)
@@ -171,14 +175,19 @@ class BLTEmbedModule(LightningModule):
         preds = self.forward(x, m, patch_ids)
         loss = self.criterion(preds.squeeze(), y.squeeze())
         return loss, preds, y, task_names
-    
-    def get_entropy_patch_start_idx(self, text_tokens: torch.Tensor, tokens_length: torch.Tensor) -> torch.Tensor:
+
+    def get_entropy_patch_start_idx(
+        self, text_tokens: torch.Tensor, tokens_length: torch.Tensor
+    ) -> torch.Tensor:
         text_tokens = text_tokens.to(self.device)
-        logits = self.entropy_model(text_tokens)
+        with torch.no_grad():
+            logits = self.entropy_model(text_tokens)
         entropy = self.entropy(logits)
-        start_idx = self.get_entropy_patch_idx(entropy, self.entropy_threshold, tokens_length)
+        start_idx = self.get_entropy_patch_idx(
+            entropy, self.entropy_threshold, tokens_length
+        )
         return start_idx
-    
+
     def get_entropy_patch_idx(
         self, entropy: torch.Tensor, threshold: float, tokens_length: torch.Tensor
     ) -> torch.Tensor:
@@ -186,19 +195,19 @@ class BLTEmbedModule(LightningModule):
 
         start_idx = torch.zeros_like(entropy, dtype=torch.bool)  # [bsz, seq_len]
         start_idx[:, 0] = True
-    
+
         diff = entropy[:, 1:] - entropy[:, :-1]
         start_idx[:, 1:] = diff > threshold
 
         batch_indices = torch.arange(bsz, device=entropy.device)
-        start_idx[batch_indices, tokens_length.squeeze(-1)-1] = True
+        start_idx[batch_indices, tokens_length.squeeze(-1) - 1] = True
 
         start_idx_int = start_idx.long()  # [bsz, seq_len]
 
         result = start_idx_int.cumsum(dim=1) - 1  # [bsz, seq_len]
-    
+
         return result
-    
+
     def entropy(self, logits: torch.Tensor) -> torch.Tensor:
         probs = F.softmax(logits, dim=-1)
         entropy = -torch.sum(probs * torch.log2(probs + 1e-10), dim=-1)

@@ -97,4 +97,3 @@ class SOOBenchTask(OfflineBBOTask):
         if self.task_type == "Continuous":
             raise ValueError("continuous task does not support num_classes attribute")
         return self.task.num_classes
-

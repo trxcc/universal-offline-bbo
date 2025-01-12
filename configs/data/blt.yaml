@@ -10,6 +10,6 @@ data_dir: data/
 
 tokenizer:
   _target_: src.data.components.blt_tokenizer.ByteTokenizer
-tokenizer_max_length: 1024
+tokenizer_max_length: 512
 
 cat_metadata: true 

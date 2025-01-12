@@ -278,7 +278,7 @@ class HPOBTask(OfflineBBOTask):
         for did, dataset in self.data.items():
             self.did2md[did] = {
                 "metadata": f"HPOB algorithm {search_space_id} on dataset {did}",
-                "X": np.array(dataset["X"]) * (-1),
+                "X": np.array(dataset["X"]),
                 "y": np.array(dataset["y"]).squeeze() * (-1),
             }  # For maximization
 
@@ -370,8 +370,3 @@ class HPOBTask(OfflineBBOTask):
     @property
     def num_classes(self) -> int:
         raise ValueError("Real world tasks do not support categorical inputs")
-
-    def test_evaluate(self, x):
-        x = x.reshape(-1, self.x_np.shape[1])
-        score = self.eval_function(x)
-        return score

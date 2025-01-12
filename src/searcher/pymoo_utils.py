@@ -4,8 +4,8 @@ import numpy as np
 from pymoo.core.crossover import Crossover
 from pymoo.core.mutation import Mutation
 from pymoo.core.problem import Problem
-from pymoo.core.sampling import Sampling
 from pymoo.core.repair import Repair
+from pymoo.core.sampling import Sampling
 
 
 class WrappedPymooProblem(Problem):
@@ -100,9 +100,10 @@ class StartFromZeroRepair(Repair):
         for k in range(len(X)):
             i = I[k]
             X[k] = np.concatenate([X[k, i:], X[k, :i]])
-        
+
         return X
-    
+
+
 class RoundingRepair(Repair):
 
     def __init__(self, **kwargs) -> None:

@@ -62,7 +62,6 @@ class BLTDataset(Dataset):
 
         metadata = self.metadatas[idx]
         metadata_tokens, _, _ = self._tokenize_and_pad(metadata)
-            
 
         task_names = self.task_names[idx]
         # entropy_patch_start_idx = self.get_entropy_patch_start_idx(text_tokens, tokens_length)
@@ -76,12 +75,16 @@ class BLTDataset(Dataset):
             # "entropy_patch_start_idx": entropy_patch_start_idx,
         }
 
-    def get_entropy_patch_start_idx(self, text_tokens: torch.Tensor, tokens_length: int) -> torch.Tensor:
+    def get_entropy_patch_start_idx(
+        self, text_tokens: torch.Tensor, tokens_length: int
+    ) -> torch.Tensor:
         logits = self.entropy_model.get_single_logits(text_tokens)
         logits = logits.reshape(-1, logits.shape[-1])
         entropy = self.entropy(logits)
         # entropy = torch.zeros(text_tokens.shape[0])
-        start_idx = self.get_entropy_patch_idx(entropy, self.entropy_threshold, tokens_length)
+        start_idx = self.get_entropy_patch_idx(
+            entropy, self.entropy_threshold, tokens_length
+        )
         return start_idx
 
     def get_entropy_patch_idx(
@@ -95,12 +98,12 @@ class BLTDataset(Dataset):
         true_positions = torch.where(start_idx)[0]
         result = torch.zeros_like(entropy)
         indices = torch.arange(len(true_positions) - 1, device=entropy.device)
-    
+
         ranges = torch.arange(entropy.size(0), device=entropy.device).unsqueeze(0)
         positions = true_positions.unsqueeze(1)
         mask = (ranges >= positions[:-1]) & (ranges < positions[1:])
         result = (mask * indices.unsqueeze(1)).sum(0)
-        result[true_positions[-1]:] = len(true_positions) - 1
+        result[true_positions[-1] :] = len(true_positions) - 1
         # for i in range(len(true_positions) - 1):
         #     result[true_positions[i]:true_positions[i+1]] = i
         # result[true_positions[-1]:] = len(true_positions) - 1

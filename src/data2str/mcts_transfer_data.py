@@ -69,7 +69,6 @@ def create_task_hpob(
     search_space_id: str, dataset_id: int, root_dir: Path, data_dir: Path
 ) -> Tuple[OfflineBBOTask, TaskMetadata, TaskData]:
     task_desc = f"HPOB_{search_space_id}"
-    print(task_desc)
     task = HPOBTask(task_desc, dataset_id, root_dir, data_dir)
 
     xl, xu = task.bounds

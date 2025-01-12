@@ -31,8 +31,10 @@ from src.searcher.cde import CDESearcher
 from src.searcher.ga import GASearcher
 from src.searcher.pso import PSOSearcher
 from src.tasks.bboplace_bench_task import BBOPlacementTask
-from src.tasks.mcts_transfer_task.func_task import BBOBTask, HPOBTask, RealWorldTask
+from src.tasks.co_task.kp import KPTask
 from src.tasks.co_task.tsp import TSPTask
+from src.tasks.mcts_transfer_task.func_task import BBOBTask, HPOBTask, RealWorldTask
+
 # task = DesignBenchTask("Superconductor-RandomForest-v0")
 # from src.tasks.soo_bench_task import SOOBenchTask
 
@@ -45,7 +47,7 @@ from src.tasks.co_task.tsp import TSPTask
 #     f"HPOB_5889", dataset_id="31", root_dir=root / "data", data_dir=root / "data"
 # )
 # task = BBOPlacementTask("adaptec1", root, reevaluate=True)
-task = TSPTask(problem_size=50, data_dir=root/"data")
+task = TSPTask(problem_size=50, data_dir=root / "data")
 ndim_problem = task.x_np.shape[1]
 lb = task.x_np.min(axis=0)
 ub = task.x_np.max(axis=0)
@@ -65,7 +67,10 @@ ub = task.x_np.max(axis=0)
 #     MAXIMIZE=True,
 # )
 searcher = GASearcher(
-    task=task, score_fn=task.test_evaluate, num_solutions=128, MAXIMIZE=True, n_gen=200
+    task=task,
+    score_fn=lambda x: task._evaluate(x).reshape(-1, 1),
+    num_solutions=128,
+    n_gen=200,
 )
 x_res = searcher.run()
 print(x_res.shape)

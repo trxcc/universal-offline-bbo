@@ -1,25 +1,31 @@
-from src.tasks.co_task.MOTSProblemDef import get_random_problems, augment_xy_data_by_64_fold_2obj
-from typing import Dict, Tuple
 import os
 from pathlib import Path
-import torch
+from typing import Dict, Tuple
+
 import numpy as np
+import torch
 
 from src.tasks.base import OfflineBBOTask
+from src.tasks.co_task.MOTSProblemDef import (
+    augment_xy_data_by_64_fold_2obj,
+    get_random_problems,
+)
+
 
 class TSPTask(OfflineBBOTask):
     _support_sizes = (20, 50, 100)
+
     def __init__(self, problem_size: int, data_dir: Path, max_data_size: int = 2500):
         assert problem_size in self._support_sizes
         self.problem_size = problem_size
-        
+
         data_dir = data_dir / "co_data" / f"bi_tsp_{problem_size}"
         x_file = data_dir / f"bi_tsp_{problem_size}-x-0.npy"
         y_file = data_dir / f"bi_tsp_{problem_size}-y-0.npy"
-        
+
         task_x = np.load(x_file)
-        task_y = np.load(y_file)[:, 0]
-        
+        task_y = np.load(y_file)[:, 0] * (-1)  # Since maximization
+
         full_y_min = np.min(task_y)
         full_y_max = np.max(task_y)
 
@@ -27,7 +33,7 @@ class TSPTask(OfflineBBOTask):
         indices = np.argsort(task_y.squeeze())[interval]
         task_x = task_x[indices]
         task_y = task_y[indices]
-        
+
         self.task_type = "Permutation"
 
         super(TSPTask, self).__init__(
@@ -39,10 +45,13 @@ class TSPTask(OfflineBBOTask):
         )
 
         self.problem_size = problem_size
-        self.problem_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'MOTSP_problem_{problem_size}.pt')
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.problem_file = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            f"MOTSP_problem_{problem_size}.pt",
+        )
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.load_problems()
-    
+
     def load_problems(self, aug_factor=1, problems=None):
         if problems is not None:
             self.problems = problems
@@ -50,7 +59,7 @@ class TSPTask(OfflineBBOTask):
             self.problems = torch.load(f=self.problem_file)
         else:
             self.problems = get_random_problems(1, self.problem_size)
-            torch.save(obj = self.problems, f = self.problem_file)
+            torch.save(obj=self.problems, f=self.problem_file)
 
         # problems.shape: (1, problem, 2)
         if aug_factor > 1:
@@ -76,7 +85,7 @@ class TSPTask(OfflineBBOTask):
             ], f"Input dtype must be int32 or int64, but got {x.dtype}"
         else:
             raise NotImplementedError
-        
+
         def get_percentile_score(
             score: np.ndarray, prefix: str = ""
         ) -> Dict[str, float]:
@@ -87,7 +96,7 @@ class TSPTask(OfflineBBOTask):
                 f"{prefix}score/50th": np.median(score).item(),
                 f"{prefix}score/25th": np.percentile(score, 25).item(),
             }
-        
+
         x = x.reshape(-1, self.x_np.shape[1])
         score = self._evaluate(x)
         score_dict = get_percentile_score(score)
@@ -101,28 +110,33 @@ class TSPTask(OfflineBBOTask):
             )
 
         return score_dict
-    
+
     def _evaluate(self, x: np.ndarray) -> np.ndarray:
         x = torch.from_numpy(x).reshape((x.shape[0], 1, -1)).to(self.device)
         self.batch_size = x.shape[0]
-        
-        expanded_problems = self.problems.repeat(self.batch_size, 1, 1)
-        
-        gathering_index = x.unsqueeze(3).expand(self.batch_size, -1, self.problem_size, 4)
-        # shape: (batch, 1, problem, 4)
-        seq_expanded = expanded_problems[:, None, :, :].expand(self.batch_size, 1, self.problem_size, 4)
 
-        # assert 0, gathering_index
+        expanded_problems = self.problems.repeat(self.batch_size, 1, 1)
+
+        gathering_index = x.unsqueeze(3).expand(
+            self.batch_size, -1, self.problem_size, 4
+        )
+        # shape: (batch, 1, problem, 4)
+        seq_expanded = expanded_problems[:, None, :, :].expand(
+            self.batch_size, 1, self.problem_size, 4
+        )
+
         ordered_seq = seq_expanded.gather(dim=2, index=gathering_index)
         # shape: (batch, q, problem, 4)
         rolled_seq = ordered_seq.roll(dims=2, shifts=-1)
-        
-        segment_lengths_obj1 = ((ordered_seq[:, :, :, :2]-rolled_seq[:, :, :, :2])**2).sum(3).sqrt()
+
+        segment_lengths_obj1 = (
+            ((ordered_seq[:, :, :, :2] - rolled_seq[:, :, :, :2]) ** 2).sum(3).sqrt()
+        )
         # segment_lengths_obj2 = ((ordered_seq[:, :, :, 2:]-rolled_seq[:, :, :, 2:])**2).sum(3).sqrt()
 
         travel_distances_obj1 = segment_lengths_obj1.sum(2)
         # travel_distances_obj2 = segment_lengths_obj2.sum(2)
-    
+
         # travel_distances_vec = torch.stack([travel_distances_obj1,travel_distances_obj2], axis = 2)\
         #     .reshape((self.batch_size, self.n_obj))
 
@@ -131,7 +145,7 @@ class TSPTask(OfflineBBOTask):
         #     if torch.equal(x_i.data.sort(1)[0], \
         #             torch.arange(x_i.size(1), out=x_i.data.new()).view(1, -1).expand_as(x_i)):
         #         out["G"][i] = -1
-        return travel_distances_obj1.cpu().numpy()
+        return travel_distances_obj1.cpu().numpy() * (-1)  # Since minimization
         # shape: (batch, pomo)
 
     @property
@@ -145,5 +159,3 @@ class TSPTask(OfflineBBOTask):
     @property
     def num_classes(self) -> int:
         raise ValueError("TSP tasks do not support categorical inputs")
-
-    

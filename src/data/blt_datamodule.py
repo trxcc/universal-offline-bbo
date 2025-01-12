@@ -18,9 +18,9 @@ class BLTDataModule(LightningDataModule):
         task_names: str,
         *,
         tokenizer: Any,
-        entropy_model: Any,
-        entropy_model_checkpoint: str,
-        entropy_threshold: float = 0.5,
+        # entropy_model: Any,
+        # entropy_model_checkpoint: str,
+        # entropy_threshold: float = 0.5,
         tokenizer_max_length: int = 128,
         cat_metadata: bool = True,
         data_dir: str = "data/",
@@ -40,9 +40,9 @@ class BLTDataModule(LightningDataModule):
         )
         self.tokenizer = tokenizer
         self.tokenizer_max_length = tokenizer_max_length
-        self.entropy_model = entropy_model
-        self.entropy_model_checkpoint = entropy_model_checkpoint
-        self.entropy_threshold = entropy_threshold
+        # self.entropy_model = entropy_model
+        # self.entropy_model_checkpoint = entropy_model_checkpoint
+        # self.entropy_threshold = entropy_threshold
         self.save_hyperparameters(logger=False)
 
         # TODO: More flexible setting of transforms
@@ -99,9 +99,6 @@ class BLTDataModule(LightningDataModule):
                 y_values,
                 tokenizer=self.tokenizer,
                 tokenizer_max_length=self.tokenizer_max_length,
-                entropy_model=self.entropy_model,
-                entropy_model_checkpoint=self.entropy_model_checkpoint,
-                entropy_threshold=self.entropy_threshold,
                 concat_metadata=self.hparams.cat_metadata,
                 metadatas=metadatas,
                 task_names=task_names_list,

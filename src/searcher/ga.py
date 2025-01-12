@@ -1,12 +1,16 @@
 import numpy as np
 from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.optimize import minimize
+from pymoo.operators.crossover.ox import OrderCrossover
+from pymoo.operators.mutation.inversion import InversionMutation
 
 from src.searcher.base import BaseSearcher
 from src.searcher.pymoo_utils import (
     RandomReplacementMutation,
     UniformCrossover,
     WrappedPymooProblem,
+    StartFromZeroRepair,
+    RoundingRepair,
 )
 
 
@@ -20,6 +24,17 @@ class GASearcher(BaseSearcher):
             operator = {
                 "crossover": UniformCrossover(),
                 "mutation": RandomReplacementMutation(),
+            }
+        elif self.task.task_type == "Permutation":
+            operator = {
+                "crossover": OrderCrossover(),
+                "mutation": InversionMutation(),
+            }
+            if "TSP" in self.task.task_name:
+                operator["repair"] = StartFromZeroRepair()
+        elif self.task.task_type == "Integer":
+            operator = {
+                "repair": RoundingRepair(),
             }
         else:
             operator = {}

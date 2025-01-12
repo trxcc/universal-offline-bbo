@@ -32,7 +32,7 @@ from src.searcher.ga import GASearcher
 from src.searcher.pso import PSOSearcher
 from src.tasks.bboplace_bench_task import BBOPlacementTask
 from src.tasks.mcts_transfer_task.func_task import BBOBTask, HPOBTask, RealWorldTask
-
+from src.tasks.co_task.tsp import TSPTask
 # task = DesignBenchTask("Superconductor-RandomForest-v0")
 # from src.tasks.soo_bench_task import SOOBenchTask
 
@@ -44,7 +44,8 @@ from src.tasks.mcts_transfer_task.func_task import BBOBTask, HPOBTask, RealWorld
 # task = HPOBTask(
 #     f"HPOB_5889", dataset_id="31", root_dir=root / "data", data_dir=root / "data"
 # )
-task = BBOPlacementTask("adaptec1", root, reevaluate=True)
+# task = BBOPlacementTask("adaptec1", root, reevaluate=True)
+task = TSPTask(problem_size=50, data_dir=root/"data")
 ndim_problem = task.x_np.shape[1]
 lb = task.x_np.min(axis=0)
 ub = task.x_np.max(axis=0)
@@ -64,7 +65,7 @@ ub = task.x_np.max(axis=0)
 #     MAXIMIZE=True,
 # )
 searcher = GASearcher(
-    task=task, score_fn=task.test_evaluate, num_solutions=128, MAXIMIZE=True, n_gen=3
+    task=task, score_fn=task.test_evaluate, num_solutions=128, MAXIMIZE=True, n_gen=200
 )
 x_res = searcher.run()
 print(x_res.shape)

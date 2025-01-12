@@ -5,6 +5,7 @@ from pymoo.core.crossover import Crossover
 from pymoo.core.mutation import Mutation
 from pymoo.core.problem import Problem
 from pymoo.core.sampling import Sampling
+from pymoo.core.repair import Repair
 
 
 class WrappedPymooProblem(Problem):
@@ -89,3 +90,23 @@ class RandomReplacementMutation(Mutation):
         random_values = np.random.randint(problem.xl, problem.xu + 1, size=X.shape)
 
         return np.where(mask, random_values, X)
+
+
+class StartFromZeroRepair(Repair):
+
+    def _do(self, problem, X, **kwargs):
+        I = np.where(X == 0)[1]
+
+        for k in range(len(X)):
+            i = I[k]
+            X[k] = np.concatenate([X[k, i:], X[k, :i]])
+        
+        return X
+    
+class RoundingRepair(Repair):
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+
+    def _do(self, problem, X, **kwargs):
+        return np.around(X).astype(int)

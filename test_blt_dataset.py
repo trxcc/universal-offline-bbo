@@ -15,6 +15,7 @@ class BLTDataset(Dataset):
         values: List[float],
         tokenizer: Any,
         entropy_model: Any,
+        entropy_model_checkpoint: str,
         entropy_threshold: float,
         tokenizer_max_length: int = 2048,
         concat_metadata: bool = True,
@@ -27,6 +28,7 @@ class BLTDataset(Dataset):
         self.tokenizer = tokenizer
         self.tokenizer_max_length = tokenizer_max_length
         self.entropy_model = entropy_model
+        self.entropy_model.load_from_checkpoint(entropy_model_checkpoint)
         self.metadatas = metadatas
         self.task_names = task_names
         self.entropy_threshold = entropy_threshold
@@ -74,25 +76,44 @@ class BLTDataset(Dataset):
 
     def get_entropy_patch_start_idx(self, text: str) -> torch.Tensor:
         text_tokens, pad_length, tokens_length = self._tokenize_and_pad(text)
-        print("text_tokens shape", text_tokens.shape)
-        print("pad_length", pad_length)
-        print("tokens_length", tokens_length)
         logits = self.entropy_model.get_single_logits(text_tokens)
-        logits = logits.reshape(-1, logits.shape[-1])[:tokens_length]
-        print("logits shape", logits.shape)
+        logits = logits.reshape(-1, logits.shape[-1])
         entropy = self.entropy(logits)
-        print("entropy shape", entropy.shape)
-        start_idx = self.get_entropy_patch_idx(entropy, self.entropy_threshold)
+        start_idx = self.get_entropy_patch_idx(entropy, self.entropy_threshold, tokens_length)
         return start_idx
 
     def get_entropy_patch_idx(
-        self, entropy: torch.Tensor, threshold: float
+        self, entropy: torch.Tensor, threshold: float, tokens_length: torch.Tensor
     ) -> torch.Tensor:
-        start_idx = torch.zeros_like(entropy, dtype=torch.bool)
-        start_idx[0] = True
-        diff = entropy[1:] - entropy[:-1]
-        start_idx[1:] = diff > threshold
-        return start_idx
+    # entropy: [bsz, seq_len]
+    # tokens_length: [bsz, 1]
+        entropy = entropy.unsqueeze(0)
+        tokens_length = torch.tensor(tokens_length)
+        tokens_length = tokens_length.unsqueeze(0)
+        bsz, seq_len = entropy.shape
+    
+    # 初始化start_idx
+        start_idx = torch.zeros_like(entropy, dtype=torch.bool)  # [bsz, seq_len]
+        start_idx[:, 0] = True
+
+    # 计算差值并标记阈值点
+        diff = entropy[:, 1:] - entropy[:, :-1]
+        start_idx[:, 1:] = diff > threshold
+    
+    # 在tokens_length处标记结束
+        batch_indices = torch.arange(bsz, device=entropy.device)
+        start_idx[batch_indices, tokens_length.squeeze(-1)-1] = True
+    
+    # 将bool tensor转为int64
+        start_idx_int = start_idx.long()  # [bsz, seq_len]
+    
+    # 计算累积和来获得patch索引
+        result = start_idx_int.cumsum(dim=1) - 1  # [bsz, seq_len]
+        print(result)
+        print(result.shape)
+        assert False
+    
+        return result
 
     def entropy(self, logits: torch.Tensor) -> torch.Tensor:
         probs = F.softmax(logits, dim=-1)
@@ -118,10 +139,11 @@ if __name__ == "__main__":
         values,
         tokenizer=tokenizer,
         entropy_model=entropy_model,
+        entropy_model_checkpoint="/root/autodl-tmp/universal_offline/universal-offline-bbo/logs/entropy_model/runs/2025-01-10_23-44-21_seed42/checkpoints/last.ckpt",
         entropy_threshold=entropy_threshold,
         metadatas=metadatas,
         task_names=task_names,
     )
-    dataloader = DataLoader(dataset, batch_size=2)
+    dataloader = DataLoader(dataset, batch_size=3)
     for batch in dataloader:
         print(batch)

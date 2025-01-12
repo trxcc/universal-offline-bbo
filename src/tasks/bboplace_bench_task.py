@@ -66,7 +66,7 @@ class BBOPlacementTask(OfflineBBOTask):
         full_y_min, full_y_max = y_all.min(), y_all.max()
 
         self.benchmark_name = benchmark_name
-        self.task_type = "Continuous"
+        self.task_type = "Integer"
 
         super(BBOPlacementTask, self).__init__(
             benchmark_name,
@@ -84,7 +84,7 @@ class BBOPlacementTask(OfflineBBOTask):
                 np.float32,
                 np.float64,
             ], f"Input dtype must be float32 or float64, but got {x.dtype}"
-        elif self.task_type == "Categorical":
+        elif self.task_type in ["Categorical", "Integer", "Permutation"]:
             assert x.dtype in [
                 np.int32,
                 np.int64,

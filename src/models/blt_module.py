@@ -12,10 +12,12 @@ from transformers.tokenization_utils_base import BatchEncoding
 from src.utils import RankedLogger
 from src.utils.io_utils import load_task_names
 
+import torch.nn.functional as F
+
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-class EmbedRegressorModule(LightningModule):
+class BLTEmbedModule(LightningModule):
 
     def __init__(
         self,
@@ -27,6 +29,9 @@ class EmbedRegressorModule(LightningModule):
         compile: bool,
         data_dir: Path,
         task_names: List[str],
+        entropy_model: Any,
+        entropy_model_checkpoint: str,
+        entropy_threshold: float,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         metadata_embedder: Optional[nn.Module] = None,
         metadata_embedder_output_dim: Optional[int] = None,
@@ -57,7 +62,9 @@ class EmbedRegressorModule(LightningModule):
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
         self.cat_metadata = cat_metadata
-
+        self.entropy_model = entropy_model
+        self.entropy_model.load_from_checkpoint(entropy_model_checkpoint)
+        self.entropy_threshold = entropy_threshold
         self.has_metadata = (
             (metadata_embedder is not None)
             and (metadata_embedder_output_dim is not None)
@@ -104,10 +111,21 @@ class EmbedRegressorModule(LightningModule):
             emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
         return emb_m
 
-    def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding]) -> torch.Tensor:
-        encoded_input = x.to(self.device)
-        x_emb = self.embedder(**encoded_input)
-        x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
+    def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding], patch_ids: Tuple[BatchEncoding]) -> torch.Tensor:
+        # assert x.dtype in [torch.long, torch.int64]
+        # assert entropy_patch_start_idx.dtype in [torch.long, torch.int64]
+        # assert torch.all(entropy_patch_start_idx >= 0)
+        x_emb = x.to(self.device)
+        patch_ids = patch_ids.to(self.device)
+        try:
+            x_emb = self.embedder(x_emb, patch_ids=patch_ids)
+        except Exception as e:
+            print(e)
+            print("module forward error")
+            print(patch_ids.shape)
+            print(x.shape)
+            print(self.embedder.tok_embeddings.weight.shape)
+            raise e
 
         if self.has_metadata:
             m_emb = self._emb_metadata(m)
@@ -148,10 +166,43 @@ class EmbedRegressorModule(LightningModule):
         y = batch["value"]
         m = batch["metadata"]
         task_names = batch["task_names"]
-
-        preds = self.forward(x, m)
+        tokens_length = batch["tokens_length"]
+        patch_ids = self.get_entropy_patch_start_idx(x, tokens_length)
+        preds = self.forward(x, m, patch_ids)
         loss = self.criterion(preds.squeeze(), y.squeeze())
         return loss, preds, y, task_names
+    
+    def get_entropy_patch_start_idx(self, text_tokens: torch.Tensor, tokens_length: torch.Tensor) -> torch.Tensor:
+        text_tokens = text_tokens.to(self.device)
+        logits = self.entropy_model(text_tokens)
+        entropy = self.entropy(logits)
+        start_idx = self.get_entropy_patch_idx(entropy, self.entropy_threshold, tokens_length)
+        return start_idx
+    
+    def get_entropy_patch_idx(
+        self, entropy: torch.Tensor, threshold: float, tokens_length: torch.Tensor
+    ) -> torch.Tensor:
+        bsz, seq_len = entropy.shape
+
+        start_idx = torch.zeros_like(entropy, dtype=torch.bool)  # [bsz, seq_len]
+        start_idx[:, 0] = True
+    
+        diff = entropy[:, 1:] - entropy[:, :-1]
+        start_idx[:, 1:] = diff > threshold
+
+        batch_indices = torch.arange(bsz, device=entropy.device)
+        start_idx[batch_indices, tokens_length.squeeze(-1)-1] = True
+
+        start_idx_int = start_idx.long()  # [bsz, seq_len]
+
+        result = start_idx_int.cumsum(dim=1) - 1  # [bsz, seq_len]
+    
+        return result
+    
+    def entropy(self, logits: torch.Tensor) -> torch.Tensor:
+        probs = F.softmax(logits, dim=-1)
+        entropy = -torch.sum(probs * torch.log2(probs + 1e-10), dim=-1)
+        return entropy
 
     def training_step(
         self,
@@ -298,9 +349,11 @@ class EmbedRegressorModule(LightningModule):
                 y = batch["value"]
                 m = batch["metadata"]
                 task_names = batch["task_names"]
+                tokens_length = batch["tokens_length"]
+                patch_ids = self.get_entropy_patch_start_idx(x, tokens_length)
 
                 y = y.to(self.device)
-                preds = self.forward(x, m)
+                preds = self.forward(x, m, patch_ids)
                 for i, task_name in enumerate(task_names):
                     task_preds[task_name].append(preds[i].squeeze())
                     task_targets[task_name].append(y[i].squeeze())

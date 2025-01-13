@@ -1,8 +1,5 @@
 _target_: src.models.embed_regressor_module.EmbedRegressorModule
 
-tokenizer:
-  _target_: transformers.AutoTokenizer.from_pretrained
-  pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
   
 embedder: 
   _target_: transformers.AutoModel.from_pretrained

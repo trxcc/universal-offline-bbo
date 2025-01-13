@@ -8,15 +8,12 @@ from torch.utils.data import DataLoader, Dataset
 # from src.models.components.entropy_model import ByteTransformer
 
 
-class BLTDataset(Dataset):
+class BLTSpaceDataset(Dataset):
     def __init__(
         self,
         texts: List[str],
         values: List[float],
         tokenizer: Any,
-        # entropy_model: Any,
-        # entropy_model_checkpoint: str,
-        # entropy_threshold: float,
         tokenizer_max_length: int = 2048,
         concat_metadata: bool = True,
         metadatas: Optional[List[str]] = None,
@@ -56,6 +53,7 @@ class BLTDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[str, torch.Tensor, str, str]:
         text = self.texts[idx]
+        assert len(text) > 0
         text_tokens, pad_length, tokens_length = self._tokenize_and_pad(text)
 
         value = self.values[idx]
@@ -64,55 +62,26 @@ class BLTDataset(Dataset):
         metadata_tokens, _, _ = self._tokenize_and_pad(metadata)
 
         task_names = self.task_names[idx]
-        # entropy_patch_start_idx = self.get_entropy_patch_start_idx(text_tokens, tokens_length)
+        space_patch_start_idx = self.get_space_patch_start_idx(text, tokens_length)
 
         return {
             "text": text_tokens,
             "value": value.squeeze(),
             "metadata": metadata_tokens,
             "task_names": task_names,
-            "tokens_length": tokens_length,
-            # "entropy_patch_start_idx": entropy_patch_start_idx,
+            "space_patch_start_idx": space_patch_start_idx,
         }
+    def get_space_patch_start_idx(self, text: str, tokens_length: int) -> torch.Tensor:
+        marker = torch.zeros(self.tokenizer_max_length, dtype=torch.int64)
+        char_tensor = torch.tensor([ord(c) for c in text[:tokens_length]])
+        space_idx = torch.where(char_tensor == 32)[0]
+        marker[space_idx] = 1
+        marker[tokens_length - 1] = 1
+        marker[0] = 1
+        marker = marker.cumsum(0)
+        return marker
 
-    def get_entropy_patch_start_idx(
-        self, text_tokens: torch.Tensor, tokens_length: int
-    ) -> torch.Tensor:
-        logits = self.entropy_model.get_single_logits(text_tokens)
-        logits = logits.reshape(-1, logits.shape[-1])
-        entropy = self.entropy(logits)
-        # entropy = torch.zeros(text_tokens.shape[0])
-        start_idx = self.get_entropy_patch_idx(
-            entropy, self.entropy_threshold, tokens_length
-        )
-        return start_idx
 
-    def get_entropy_patch_idx(
-        self, entropy: torch.Tensor, threshold: float, tokens_length: int
-    ) -> torch.Tensor:
-        start_idx = torch.zeros_like(entropy, dtype=torch.bool)
-        start_idx[0] = True
-        diff = entropy[1:] - entropy[:-1]
-        start_idx[1:] = diff > threshold
-        start_idx[tokens_length] = True
-        true_positions = torch.where(start_idx)[0]
-        result = torch.zeros_like(entropy)
-        indices = torch.arange(len(true_positions) - 1, device=entropy.device)
-
-        ranges = torch.arange(entropy.size(0), device=entropy.device).unsqueeze(0)
-        positions = true_positions.unsqueeze(1)
-        mask = (ranges >= positions[:-1]) & (ranges < positions[1:])
-        result = (mask * indices.unsqueeze(1)).sum(0)
-        result[true_positions[-1] :] = len(true_positions) - 1
-        # for i in range(len(true_positions) - 1):
-        #     result[true_positions[i]:true_positions[i+1]] = i
-        # result[true_positions[-1]:] = len(true_positions) - 1
-        return result
-
-    def entropy(self, logits: torch.Tensor) -> torch.Tensor:
-        probs = F.softmax(logits, dim=-1)
-        entropy = -torch.sum(probs * torch.log2(probs + 1e-10), dim=-1)
-        return entropy
 
 
 # if __name__ == "__main__":

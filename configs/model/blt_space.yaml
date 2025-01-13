@@ -1,4 +1,4 @@
-_target_: src.models.blt_module.BLTEmbedModule
+_target_: src.models.blt_space_module.BLTSpaceEmbedModule
 
   
 embedder: 
@@ -40,13 +40,6 @@ embedder_optimizer:
   _partial_: true 
   lr: 0.00002
   weight_decay: 0.00001
-
-entropy_model:
-  _target_: src.models.components.entropy_model.ByteTransformer
-
-entropy_model_checkpoint: /root/autodl-tmp/universal_offline/universal-offline-bbo/logs/entropy_model/runs/2025-01-12_16-39-18_seed42/checkpoints/epoch_epoch=009.ckpt
-
-entropy_threshold: 0.5
 
 data_dir: ${data.data_dir}
 task_names: ${data.task_names}

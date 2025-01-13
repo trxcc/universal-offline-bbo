@@ -65,6 +65,7 @@ def create_task(
 
     metadata = PermutationTaskMetadata(
         input_dim=int(problem_size),
+        **TEXT_DESCRIPTIONS[f"{task_name}_{problem_size}"]
     )
     data = PermutationTaskData(task.x_np)
 

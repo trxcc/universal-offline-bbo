@@ -16,6 +16,7 @@ def load_task_names(task_names: Union[str, List[str]], data_dir: Path) -> List[s
                 if filename.startswith("HPOB") and not filename.startswith(
                     ("HPOB_5889", "HPOB_5906")
                 ):
+                # if not filename.startswith(("TSP", "KP")):
                     continue
                 task_name = os.path.splitext(filename)[0]
                 task_names.append(task_name)

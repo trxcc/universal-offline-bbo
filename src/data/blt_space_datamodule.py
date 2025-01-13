@@ -7,20 +7,22 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.data.distributed import DistributedSampler
 
-from src.data.components.omnipred_dataset import OmnipredDataset
+from src.data.components.blt_space_dataset import BLTSpaceDataset
 from src.utils.io_utils import load_task_names
 
 
-class OmnipredDataModule(LightningDataModule):
+class BLTSpaceDataModule(LightningDataModule):
 
     def __init__(
         self,
         task_names: str,
         *,
-        input_tokenizer: Any,
-        output_tokenizer: Any,
-        max_length: int = 128,
-        concat_metadata: bool = True,
+        tokenizer: Any,
+        # entropy_model: Any,
+        # entropy_model_checkpoint: str,
+        # entropy_threshold: float = 0.5,
+        tokenizer_max_length: int = 128,
+        cat_metadata: bool = True,
         data_dir: str = "data/",
         val_ratio: float = 0.2,
         batch_size: int = 128,
@@ -36,8 +38,11 @@ class OmnipredDataModule(LightningDataModule):
         self.device = device or torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
-        self.input_tokenizer = input_tokenizer
-        self.output_tokenizer = output_tokenizer
+        self.tokenizer = tokenizer
+        self.tokenizer_max_length = tokenizer_max_length
+        # self.entropy_model = entropy_model
+        # self.entropy_model_checkpoint = entropy_model_checkpoint
+        # self.entropy_threshold = entropy_threshold
         self.save_hyperparameters(logger=False)
 
         # TODO: More flexible setting of transforms
@@ -49,12 +54,6 @@ class OmnipredDataModule(LightningDataModule):
         self.data_test: Optional[Dataset] = None
 
         self.batch_size_per_device = batch_size
-
-        # Add these helper properties
-        self.input_pad_token_id = self.input_tokenizer.pad_token_id
-        self.output_pad_token_id = self.output_tokenizer.pad_token_id
-        self.output_bos_token_id = self.output_tokenizer.bos_token_id
-        self.output_eos_token_id = self.output_tokenizer.eos_token_id
 
     def setup(self, stage: Optional[str] = None) -> None:
         # Divide batch size by the number of devices.
@@ -93,18 +92,16 @@ class OmnipredDataModule(LightningDataModule):
                 with open(metadata_file, "r") as f:
                     metadata = f.read()
                     metadatas.extend([metadata for _ in range(len(xs))])
-                    task_names_list.extend([task_name for _ in range(len(xs))])
-            # print(list(set(task_names_list)))
-            # assert 0, (len(x_values), len(list(set(task_names_list))))
-            dataset = OmnipredDataset(
-                x_data=x_values,
-                y_data=y_values,
-                input_tokenizer=self.hparams.input_tokenizer,
-                output_tokenizer=self.hparams.output_tokenizer,
-                concat_metadata=self.hparams.concat_metadata,
+                task_names_list.extend([task_name for _ in range(len(xs))])
+
+            dataset = BLTSpaceDataset(
+                x_values,
+                y_values,
+                tokenizer=self.tokenizer,
+                tokenizer_max_length=self.tokenizer_max_length,
+                concat_metadata=self.hparams.cat_metadata,
                 metadatas=metadatas,
-                task_names_list=task_names_list,
-                max_length=self.hparams.max_length,
+                task_names=task_names_list,
             )
             lengths = [
                 len(x_values) - int(len(x_values) * self.hparams.val_ratio),

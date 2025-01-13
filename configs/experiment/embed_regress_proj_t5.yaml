@@ -4,8 +4,8 @@
 # python train.py experiment=example
 
 defaults:
-  - override /data: string_xy
-  - override /model: embed_regress_nopretrain
+  - override /data: embed_regress_t5
+  - override /model: embed_regress_t5
   - override /callbacks: default
   - override /trainer: default
   - override /logger: wandb
@@ -21,7 +21,7 @@ seed: 42
 data:
   task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
   batch_size: 128
-  tokenizer_max_length: 400
+  tokenizer_max_length: 200
 
 trainer:
   min_epochs: 2
@@ -29,8 +29,18 @@ trainer:
 
 model:
   metadata_embedder: 
-    _target_: transformers.AutoModel.from_pretrained
-    pretrained_model_name_or_path: sentence-transformers/all-MiniLM-L6-v2
+    _target_: transformers.T5EncoderModel #.from_pretrained
+  # pretrained_model_name_or_path: google-t5/t5-small
+    config:
+      _target_: transformers.T5Config
+      d_model: 384
+      d_ff: 1536  
+      num_layers: 3
+      num_heads: 3
+      vocab_size: 32128
+      max_position_embeddings: 256
+      decoder_start_token_id: null
+      use_cache: false
   metadata_embedder_output_dim: 384
 
   metadata_embedder_optimizer:
@@ -52,7 +62,7 @@ model:
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: baseline_embed_regress_proj
+task_name: baseline_embed_regress_proj_t5
 
 logger:
   wandb:

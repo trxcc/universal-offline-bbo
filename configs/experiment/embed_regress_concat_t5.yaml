@@ -39,7 +39,7 @@ model:
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: embed_regress_t5_m_cat_from_scratch
+task_name: baseline_embed_regress_t5_m_cat_from_scratch
 
 logger:
   wandb:

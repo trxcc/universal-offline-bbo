@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Tuple
 
 
 class RMSNorm(nn.Module):
@@ -15,6 +16,36 @@ class RMSNorm(nn.Module):
 
     def _norm(self, x: torch.Tensor):
         return x * torch.rsqrt((x * x).mean(-1, keepdim=True) + self.eps)
+def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor, seq_dim: int):
+
+    ndim = x.ndim
+    assert 0 <= seq_dim < ndim
+    assert freqs_cis.shape == (
+        x.shape[seq_dim],
+        x.shape[-3],
+        2,
+        2,
+    ), f"freqs_cis vs x: {(freqs_cis.shape, x.shape)}"
+    shape = [
+        d if i == seq_dim or i == ndim - 3 else 1 for i, d in enumerate(x.shape[:-2])
+    ] + [2, 2]
+    return freqs_cis.view(*shape)
+
+
+def apply_rotary_emb(
+    xq: torch.Tensor,
+    xk: torch.Tensor,
+    seq_dim: int,
+    freqs_cis: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    xq_ = xq.reshape(*xq.shape[:-1], -1, 1, 2)  # B S H D -> B S H D/2 1 2
+    xk_ = xk.reshape(*xk.shape[:-1], -1, 1, 2)  # B S H D -> B S H D/2 1 2
+    freqs_cis = reshape_for_broadcast(
+        freqs_cis, xq_, seq_dim
+    ).float()  # S D/2 2 2 -> 1 S 1 D/2 2 2
+    xq_out = (xq_ * freqs_cis).sum(5).flatten(3)
+    xk_out = (xk_ * freqs_cis).sum(5).flatten(3)
+    return xq_out.type_as(xq), xk_out.type_as(xk)
 
 
 class CrossAttention(nn.Module):
@@ -73,7 +104,19 @@ class Attention(nn.Module):
         dropout: float,
     ):
         super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.dropout = dropout
+        self.head_dim = d_model // num_heads
+        self.scale = self.head_dim**-0.5
 
+        self.q_proj = nn.Linear(d_model, self.head_dim * num_heads, bias=False)
+        self.k_proj = nn.Linear(d_model, self.head_dim * num_heads, bias=False)
+        self.v_proj = nn.Linear(d_model, self.head_dim * num_heads, bias=False)
+
+        self.out_proj = nn.Linear(self.head_dim * num_heads, d_model)
+
+    def forward(self, x: torch.Tensor):
 
 class TransformerBlock(nn.Module):
     def __init__(
@@ -116,6 +159,7 @@ class LocalEncoder(nn.Module):
         self.tok_embeddings = nn.Embedding(vocab_size, d_model)
         self.pos_embedding = nn.Embedding(max_seq_len, d_model)
         self.norm = nn.LayerNorm(d_model)
+        self.patch_norm = nn.LayerNorm(d_model)
         self.out_proj = nn.Linear(d_model * max_patch_len, d_output)
         self.layers = nn.ModuleList(
             [
@@ -142,14 +186,14 @@ class LocalEncoder(nn.Module):
 
     def forward(self, tokens: torch.Tensor, patch_ids: torch.Tensor):
         text_embeds = self.apply_embedding(tokens)
-        # assert 0
         text_embeds = F.dropout(text_embeds, self.dropout)
         patch_embeds = self.get_patch_embeds(patch_ids, text_embeds, self.max_patch_len)
         try:
             bsz, _, d_model = text_embeds.shape
             for i, layer in enumerate(self.layers):
                 text_embeds = layer(text_embeds)
-            patch_embeds = self.cross_attn_layers[i](patch_embeds, text_embeds)
+                patch_embeds_cross = self.cross_attn_layers[i](patch_embeds, text_embeds)
+                patch_embeds = patch_embeds_cross + patch_embeds
         except Exception as e:
             print(e)
             print("forward error2")

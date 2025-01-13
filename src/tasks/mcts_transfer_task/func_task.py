@@ -62,15 +62,18 @@ class BBOBTask(OfflineBBOTask):
             task_x = self.seed2md[func_seed]["X"]
             task_y = self.seed2md[func_seed]["y"]
 
-        self.task_type = "Continuous"
-
         super(BBOBTask, self).__init__(
             f"{task_name}_{func_seed}",
+            task_type="Continuous",
             x_np=task_x,
             y_np=task_y,
             full_y_min=np.min(task_y) if self.seed_in_data else 0,
             full_y_max=np.max(task_y) if self.seed_in_data else 1,
         )
+
+    @property
+    def eval_stability(self) -> bool:
+        return True
 
     def evaluate(
         self, x: np.ndarray, return_normalized_y: bool = True
@@ -189,15 +192,18 @@ class RealWorldTask(OfflineBBOTask):
                 task_y = preds.squeeze()
                 self.seed2md[func_seed]["y"] = preds
 
-        self.task_type = "Continuous"
-
         super(RealWorldTask, self).__init__(
             f"{task_name}_{func_seed}",
+            task_type="Continuous",
             x_np=task_x,
             y_np=task_y,
             full_y_min=np.min(task_y) if self.seed_in_data else 0,
             full_y_max=np.max(task_y) if self.seed_in_data else 1,
         )
+
+    @property
+    def eval_stability(self) -> bool:
+        return False
 
     def evaluate(
         self, x: np.ndarray, return_normalized_y: bool = True
@@ -301,15 +307,18 @@ class HPOBTask(OfflineBBOTask):
             task_x = self.did2md[dataset_id]["X"]
             task_y = self.did2md[dataset_id]["y"]
 
-        self.task_type = "Continuous"
-
         super(HPOBTask, self).__init__(
             f"HPOB_{search_space_id}",
+            task_type="Continuous",
             x_np=task_x,
             y_np=task_y,
             full_y_min=np.min(task_y) if self.did_in_data else 0,
             full_y_max=np.max(task_y) if self.did_in_data else 1,
         )
+
+    @property
+    def eval_stability(self) -> bool:
+        return False
 
     def evaluate(
         self, x: np.ndarray, return_normalized_y: bool = True

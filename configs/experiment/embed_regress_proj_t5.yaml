@@ -21,7 +21,7 @@ seed: 42
 data:
   task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
   batch_size: 128
-  tokenizer_max_length: 200
+  tokenizer_max_length: 256
 
 trainer:
   min_epochs: 2
@@ -35,8 +35,8 @@ model:
       _target_: transformers.T5Config
       d_model: 384
       d_ff: 1536  
-      num_layers: 3
-      num_heads: 3
+      num_layers: 6
+      num_heads: 6
       vocab_size: 32128
       max_position_embeddings: 256
       decoder_start_token_id: null

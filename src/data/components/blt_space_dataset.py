@@ -71,6 +71,7 @@ class BLTSpaceDataset(Dataset):
             "task_names": task_names,
             "space_patch_start_idx": space_patch_start_idx,
         }
+
     def get_space_patch_start_idx(self, text: str, tokens_length: int) -> torch.Tensor:
         marker = torch.zeros(self.tokenizer_max_length, dtype=torch.int64)
         char_tensor = torch.tensor([ord(c) for c in text[:tokens_length]])
@@ -80,8 +81,6 @@ class BLTSpaceDataset(Dataset):
         marker[0] = 1
         marker = marker.cumsum(0)
         return marker
-
-
 
 
 # if __name__ == "__main__":

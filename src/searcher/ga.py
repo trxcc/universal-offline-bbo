@@ -15,10 +15,18 @@ from src.searcher.pymoo_utils import (
 
 
 class GASearcher(BaseSearcher):
-    def __init__(self, n_gen: int, MAXIMIZE: bool = True, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        n_gen: int,
+        MAXIMIZE: bool = True,
+        EVAL_STABILITY: bool = False,
+        *args,
+        **kwargs
+    ) -> None:
         self.n_gen = n_gen
         super(GASearcher, self).__init__(*args, **kwargs)
         xl, xu = self.task.bounds
+        self.EVAL_STABILITY = EVAL_STABILITY
 
         if self.task.task_type == "Categorical":
             operator = {
@@ -38,6 +46,15 @@ class GASearcher(BaseSearcher):
             }
         else:
             operator = {}
+
+        if self.EVAL_STABILITY:
+            self.X_all = []
+
+            def record_callback(algorithm):
+                X = algorithm.pop.get("X")
+                self.X_all.append(X)
+
+            operator["callback"] = record_callback
 
         self.pymoo_problem = WrappedPymooProblem(
             n_var=self.task.ndim_problem,

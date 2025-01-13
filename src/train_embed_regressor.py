@@ -197,3 +197,5 @@ if __name__ == "__main__":
 # universal-offline-bbo/logs/embed_regress_TFBind10-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
 # logs/embed_regress_multitask_m_emb_from_scratch/runs/2025-01-10_00-05-41_seed42/checkpoints/last.ckpt
 # logs/embed_regress_multitask_m_cat_from_scratch/runs/2025-01-10_00-04-59_seed42/checkpoints/last.ckpt
+# logs/baseline_embed_regress_proj_t5/runs/2025-01-13_17-45-47_seed42/checkpoints/last.ckpt
+# logs/baseline_embed_regress_t5_m_cat_from_scratch/runs/2025-01-13_14-27-10_seed42/checkpoints/last.ckpt

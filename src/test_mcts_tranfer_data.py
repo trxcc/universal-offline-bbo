@@ -21,8 +21,8 @@ with open(data_dir / "real_world" / "meta_dataset.json", "r") as f:
         length = 0
         print("Search space:", search_space_id)
         for dataset_id, dataset in search_space_data.items():
-            if int(dataset_id.split('+')[-1]) not in search_spaces:
-                search_spaces.append(int(dataset_id.split('+')[-1]))
+            if int(dataset_id.split("+")[-1]) not in search_spaces:
+                search_spaces.append(int(dataset_id.split("+")[-1]))
                 data_size += np.array(dataset["X"]).shape[0]
                 length += 1
             print(np.array(dataset["X"]).shape)

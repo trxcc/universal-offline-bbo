@@ -41,20 +41,21 @@ class BLTSpaceEmbedModule(LightningModule):
 
         self.save_hyperparameters(logger=False)
 
-        if not from_pretrained:
+        # if not from_pretrained:
 
-            def init_weights(m):
-                if isinstance(m, (nn.Linear, nn.Embedding)):
-                    nn.init.trunc_normal_(m.weight, std=0.02, a=-0.04, b=0.04)
-                    if hasattr(m, "bias") and m.bias is not None:
-                        nn.init.zeros_(m.bias)
+        #     def init_weights(m):
+        #         if isinstance(m, (nn.Linear, nn.Embedding)):
+        #             nn.init.trunc_normal_(m.weight, std=0.02, a=-0.04, b=0.04)
+        #             if hasattr(m, "bias") and m.bias is not None:
+        #                 nn.init.zeros_(m.bias)
 
-            embedder.apply(init_weights)
+        #     embedder.apply(init_weights)
 
         self.automatic_optimization = False
         self.task_names = load_task_names(task_names, data_dir)
 
         self.embedder = embedder
+        self.embedder.init_weights()
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
         self.cat_metadata = cat_metadata
@@ -168,7 +169,6 @@ class BLTSpaceEmbedModule(LightningModule):
         preds = self.forward(x, m, space_patch_start_idx)
         loss = self.criterion(preds.squeeze(), y.squeeze())
         return loss, preds, y, task_names
-
 
     def training_step(
         self,
@@ -318,7 +318,7 @@ class BLTSpaceEmbedModule(LightningModule):
                 space_patch_start_idx = batch["space_patch_start_idx"]
 
                 y = y.to(self.device)
-                preds = self.forward(x, m, space_patch_start_idx)   
+                preds = self.forward(x, m, space_patch_start_idx)
                 for i, task_name in enumerate(task_names):
                     task_preds[task_name].append(preds[i].squeeze())
                     task_targets[task_name].append(y[i].squeeze())

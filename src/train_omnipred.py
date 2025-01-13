@@ -42,7 +42,7 @@ from src.utils import (
     omnipred_fitness_function_string,
     task_wrapper,
 )
-from src.utils.io_utils import load_task_names
+from src.utils.io_utils import load_task_names, save_metric_to_csv
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -79,7 +79,10 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer, callbacks=callbacks, logger=logger
+        cfg.trainer,
+        callbacks=callbacks,
+        logger=logger,
+        # resume_from_checkpoint=cfg.get("resume_path")
     )
 
     object_dict = {
@@ -141,17 +144,36 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 score_fn=lambda x: omnipred_fitness_function_string(
                     x, m=m, model=model
                 ),
+                EVAL_STABILITY=task.eval_stability,
             )
 
             x_res = searcher.run()
+
             tmp_dict = task_instance.evaluate(x_res, return_normalized_y=True)
             res_dict = {}
             for k, v in tmp_dict.items():
-                res_dict[f"{task_name}-{k}"] = v
+                res_dict[f"{task_name}/{k}"] = v
+
+            if task.eval_stability:
+                X_all = searcher.X_all
+                stability = task.evaluate_stability(X_all)
+                res_dict[f"{task_name}/stability"] = stability
+
             score_dict.update(res_dict)
+
             log.info("Final score statistics:")
+            csv_dir = root_dir / "csv_results"
             for score_desc, score in res_dict.items():
                 log.info(f"{score_desc}: {score}")
+                task_, metric_ = score_desc.split("/")
+                save_metric_to_csv(
+                    results_dir=csv_dir,
+                    task_name=task_,
+                    model_name=cfg.task,
+                    seed=cfg.get("seed"),
+                    metric_value=score,
+                    metric_name=metric_,
+                )
                 for logger0 in logger:
                     logger0.log_metrics({score_desc: score}, step=1)
 
@@ -198,3 +220,5 @@ if __name__ == "__main__":
 # logs/omnipred_test/runs/2025-01-04_22-59-00_seed42/Universal/ur6l0g7m/checkpoints/test.ckpt
 # logs/omnipred_test/runs/2025-01-05_17-11-07_seed42/Universal/2064go0t/checkpoints/test.ckpt
 # logs/omnipred_24m/runs/2025-01-10_01-29-12_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_17-27-20_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_22-48-34_seed42/checkpoints/last.ckpt

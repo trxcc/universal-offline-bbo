@@ -34,10 +34,9 @@ class TSPTask(OfflineBBOTask):
         task_x = task_x[indices]
         task_y = task_y[indices]
 
-        self.task_type = "Permutation"
-
         super(TSPTask, self).__init__(
             f"TSP_{problem_size}",
+            task_type="Permutation",
             x_np=task_x,
             y_np=task_y,
             full_y_min=full_y_min,
@@ -51,6 +50,10 @@ class TSPTask(OfflineBBOTask):
         )
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.load_problems()
+
+    @property
+    def eval_stability(self) -> bool:
+        return True
 
     def load_problems(self, aug_factor=1, problems=None):
         if problems is not None:

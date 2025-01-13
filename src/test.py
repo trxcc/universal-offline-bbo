@@ -34,20 +34,21 @@ from src.tasks.bboplace_bench_task import BBOPlacementTask
 from src.tasks.co_task.kp import KPTask
 from src.tasks.co_task.tsp import TSPTask
 from src.tasks.mcts_transfer_task.func_task import BBOBTask, HPOBTask, RealWorldTask
+from src.tasks.soo_bench_task import SOOBenchTask
 
 # task = DesignBenchTask("Superconductor-RandomForest-v0")
 # from src.tasks.soo_bench_task import SOOBenchTask
 
 # from src.tasks.design_bench_task import DesignBenchTask
 
-# task = SOOBenchTask("gtopx_data", 2, 1, low=0, high=100, num_data=10000)
+task = SOOBenchTask("gtopx_data", 2, 1, low=25, high=75, num_data=10000)
 # task = BBOBTask(task_name="GriewankRosenbrock", func_seed=0, data_dir=root / "data")
 # task = RealWorldTask("Rover", root / "data", 150, reevaluate=False)
 # task = HPOBTask(
 #     f"HPOB_5889", dataset_id="31", root_dir=root / "data", data_dir=root / "data"
 # )
 # task = BBOPlacementTask("adaptec1", root, reevaluate=True)
-task = TSPTask(problem_size=50, data_dir=root / "data")
+# task = TSPTask(problem_size=50, data_dir=root / "data")
 ndim_problem = task.x_np.shape[1]
 lb = task.x_np.min(axis=0)
 ub = task.x_np.max(axis=0)

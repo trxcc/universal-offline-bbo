@@ -6,7 +6,7 @@ embedder:
   vocab_size: 258
   d_model: 384
   d_output: 384
-  num_layers: 6
+  num_layers: 2
   num_heads: 8
   cross_attn_nheads: 8
   dropout: 0.1

@@ -2,11 +2,12 @@ _target_: src.models.blt_space_module.BLTSpaceEmbedModule
 
   
 embedder: 
-  _target_: src.models.components.blt_model.LocalEncoder
+  _target_: src.models.components.blt_model.BLTEmbedder
   vocab_size: 258
   d_model: 384
   d_output: 384
-  num_layers: 6
+  num_encoder_layers: 2
+  num_embedder_layers: 4
   num_heads: 8
   cross_attn_nheads: 8
   dropout: 0.1

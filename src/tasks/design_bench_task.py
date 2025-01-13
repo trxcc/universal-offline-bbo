@@ -83,12 +83,9 @@ class DesignBenchTask(OfflineBBOTask):
         task_x, task_y = self.task.x.copy(), self.task.y.copy()
         x_ood, y_ood = _load_ood_data(task_name, task_x)
 
-        self.task_type = "Categorical" if self.task.is_discrete else "Continuous"
-
-        self.scale_up_ratio = scale_up_ratio if self.task_type == "Continuous" else 1.0
-
         super(DesignBenchTask, self).__init__(
             task_name,
+            task_type="Categorical" if self.task.is_discrete else "Continuous",
             x_np=task_x,
             y_np=task_y,
             full_y_min=full_y_min,
@@ -97,46 +94,19 @@ class DesignBenchTask(OfflineBBOTask):
             y_ood_np=y_ood,
         )
 
-    def evaluate(
-        self, x: np.ndarray, return_normalized_y: bool = True
-    ) -> Dict[str, np.ndarray]:
-        if self.task_type == "Continuous":
-            assert x.dtype in [
-                np.float32,
-                np.float64,
-            ], f"Input dtype must be float32 or float64, but got {x.dtype}"
-        elif self.task_type == "Categorical":
-            assert x.dtype in [
-                np.int32,
-                np.int64,
-            ], f"Input dtype must be int32 or int64, but got {x.dtype}"
-        else:
-            raise NotImplementedError
+        self.scale_up_ratio = scale_up_ratio if self.task_type == "Continuous" else 1.0
 
-        def get_percentile_score(
-            score: np.ndarray, prefix: str = ""
-        ) -> Dict[str, float]:
-            prefix = f"{prefix}/" if prefix != "" else prefix
-            return {
-                f"{prefix}score/100th": np.max(score).item(),
-                f"{prefix}score/75th": np.percentile(score, 75).item(),
-                f"{prefix}score/50th": np.median(score).item(),
-                f"{prefix}score/25th": np.percentile(score, 25).item(),
-            }
+    @property
+    def eval_stability(self) -> bool:
+        return self.task_name in (
+            "TFBind8-Exact-v0",
+            "TFBind10-Exact-v0",
+            "Superconductor-RandomForest-v0",
+        )
 
+    def _evaluate(self, x: np.ndarray) -> np.ndarray:
         x = x.reshape(-1, self.x_np.shape[1])
-        score = self.task.predict(x)
-        score_dict = get_percentile_score(score)
-
-        if return_normalized_y:
-            normalized_score = (score - self.full_y_min) / (
-                self.full_y_max - self.full_y_min
-            )
-            score_dict.update(
-                get_percentile_score(normalized_score, prefix="normalized")
-            )
-
-        return score_dict
+        return self.task.predict(x)
 
     @property
     def bounds(self) -> Tuple[np.ndarray, np.ndarray]:

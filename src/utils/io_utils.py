@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from typing import List, Union
 
+import pandas as pd
+
 
 def load_task_names(task_names: Union[str, List[str]], data_dir: Path) -> List[str]:
     if isinstance(task_names, list):
@@ -16,10 +18,31 @@ def load_task_names(task_names: Union[str, List[str]], data_dir: Path) -> List[s
                 if filename.startswith("HPOB") and not filename.startswith(
                     ("HPOB_5889", "HPOB_5906")
                 ):
-                # if not filename.startswith(("TSP", "KP")):
+                    # if not filename.startswith(("TSP", "KP")):
                     continue
                 task_name = os.path.splitext(filename)[0]
                 task_names.append(task_name)
     else:
         task_names = [task_names]
     return task_names
+
+
+def save_metric_to_csv(
+    results_dir: Path,
+    task_name: str,
+    model_name: str,
+    seed: int,
+    metric_value: float,
+    metric_name: str,
+) -> None:
+    csv_path = results_dir / f"{seed}-{metric_name}.csv"
+    result = {"task": task_name, f"{model_name}": metric_value}
+
+    if not os.path.exists(csv_path):
+        new_df = pd.DataFrame([result])
+        new_df.to_csv(csv_path, index=False)
+    else:
+        existing_df = pd.read_csv(csv_path, header=0, index_col=0)
+        updated_df = existing_df.copy()
+        updated_df.loc[task_name, f"{model_name}"] = metric_value
+        updated_df.to_csv(csv_path, index=True, mode="w")

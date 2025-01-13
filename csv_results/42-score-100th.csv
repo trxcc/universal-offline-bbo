@@ -1,0 +1,2 @@
+task,"{'_target_': 'src.tasks.design_bench_task.DesignBenchTask', 'task_name': 'Superconductor-RandomForest-v0', 'scale_up_ratio': 1.5}"
+Superconductor-RandomForest-v0,85.58598327636719

@@ -169,7 +169,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 save_metric_to_csv(
                     results_dir=csv_dir,
                     task_name=task_,
-                    model_name=cfg.task,
+                    model_name=cfg.task_name,
                     seed=cfg.get("seed"),
                     metric_value=score,
                     metric_name=metric_,
@@ -222,3 +222,4 @@ if __name__ == "__main__":
 # logs/omnipred_24m/runs/2025-01-10_01-29-12_seed42/checkpoints/last.ckpt
 # logs/baseline_omnipred_24m/runs/2025-01-13_17-27-20_seed42/checkpoints/last.ckpt
 # logs/baseline_omnipred_24m/runs/2025-01-13_22-48-34_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_23-39-10_seed42/checkpoints/last.ckpt

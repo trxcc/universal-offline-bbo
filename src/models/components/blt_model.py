@@ -421,10 +421,12 @@ class GlobalTransformer(nn.Module):
         self.rotary_embedding = RotaryEmbedding(
             theta=10000.0, head_dim=d_model // num_heads
         )
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor):
         bs, seqlen, _ = x.shape
         freq_cis = self.rotary_embedding(seqlen=seqlen)
+        x = self.dropout(x)
         for layer in self.layers:
             x = layer(x, freq_cis)
         return x.reshape(bs, -1)

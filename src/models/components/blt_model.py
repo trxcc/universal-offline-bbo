@@ -429,7 +429,58 @@ class GlobalTransformer(nn.Module):
         x = self.dropout(x)
         for layer in self.layers:
             x = layer(x, freq_cis)
-        return x.reshape(bs, -1)
+        return x
+
+    def init_weights(self, init_std=None, factor=1.0):
+        for layer in self.layers:
+            layer.init_weights(init_std, factor)
+
+
+class LocalDecoder(nn.Module):
+    def __init__(
+        self,
+        d_model: int,
+        num_layers: int,
+        num_heads: int,
+        num_cross_attn_heads: int,
+        dropout: float,
+        vocab_size: int=258,
+    ):
+        super().__init__()
+        self.d_model = d_model
+        self.layers = nn.ModuleList(
+            [TransformerBlock(d_model, num_heads, dropout) for _ in range(num_layers)]
+        )
+        self.cross_attn_layers = nn.ModuleList(
+            [
+                CrossAttention(d_model, num_cross_attn_heads, dropout)
+                for _ in range(num_layers)
+            ]
+        )
+        self.rotary_embedding = RotaryEmbedding(
+            theta=10000.0, head_dim=d_model // num_heads
+        )
+        self.dropout = dropout
+        self.norm = RMSNorm(d_model)
+        self.out_proj = nn.Linear(d_model, vocab_size)
+
+    def forward(
+        self, token_embeds: torch.Tensor, patch_embeds: torch.Tensor
+    ):
+        bs, seqlen, _ = token_embeds.shape
+        freq_cis = self.rotary_embedding(seqlen=seqlen)
+        h = token_embeds
+        h = F.dropout(h, self.dropout)
+        for i, layer in enumerate(self.layers):
+            h_cross = self.cross_attn_layers[i](
+                patch_embeds, h
+            )
+            h = h_cross + h
+            h = layer(h, freq_cis)
+        h_pred = self.norm(h)
+        h_pred = F.dropout(h_pred, self.dropout)
+        h_pred = self.out_proj(h_pred)
+        return h_pred.float()
 
     def init_weights(self, init_std=None, factor=1.0):
         for layer in self.layers:
@@ -470,12 +521,38 @@ class BLTEmbedder(nn.Module):
     def forward(self, x: torch.Tensor, patch_ids: torch.Tensor):
         x = self.local_encoder(x, patch_ids)
         x = self.global_transformer(x)
-        return self.out_proj(x)
+        return x
 
     def init_weights(self, init_std=None, factor=1.0):
         self.local_encoder.init_weights(init_std, factor)
         self.global_transformer.init_weights(init_std, factor)
 
+class BLT(nn.Module):
+    def __init__(
+        self,
+        d_model: int,
+        d_output: int,
+        num_encoder_layers: int,
+        num_decoder_layers: int,
+        num_embedder_layers: int,
+        num_heads: int,
+        dropout: float,
+        cross_attn_nheads: int,
+        max_seq_len: int = 1024,
+        max_patch_len: int = 256,
+        vocab_size: int = 258,
+    ):
+        super().__init__()
+        self.embedder = BLTEmbedder(d_model, d_output, num_encoder_layers, num_embedder_layers, num_heads, dropout, cross_attn_nheads, max_seq_len, max_patch_len)
+        self.decoder = LocalDecoder(d_model, num_decoder_layers, num_heads, cross_attn_nheads, dropout, vocab_size)
+
+    def forward(self, x: torch.Tensor, patch_ids: torch.Tensor):
+        h, patch_embeds = self.embedder(x, patch_ids)
+        return self.decoder(h, patch_embeds)
+    
+    def init_weights(self, init_std=None, factor=1.0):
+        self.embedder.init_weights(init_std, factor)
+        self.decoder.init_weights(init_std, factor)
 
 if __name__ == "__main__":
     model = LocalEncoder(100, 128, 128, 2, 8, 8, 0.1, 1024)

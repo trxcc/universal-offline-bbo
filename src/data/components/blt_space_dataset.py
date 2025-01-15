@@ -62,7 +62,9 @@ class BLTSpaceDataset(Dataset):
         metadata_tokens, _, _ = self._tokenize_and_pad(metadata)
 
         task_names = self.task_names[idx]
-        space_patch_start_idx = self.get_space_patch_start_idx(text, tokens_length)
+        space_patch_start_idx, patch_num = self.get_space_patch_start_idx(
+            text, tokens_length
+        )
 
         return {
             "text": text_tokens,
@@ -70,6 +72,7 @@ class BLTSpaceDataset(Dataset):
             "metadata": metadata_tokens,
             "task_names": task_names,
             "space_patch_start_idx": space_patch_start_idx,
+            "patch_num": patch_num,
         }
 
     def get_space_patch_start_idx(self, text: str, tokens_length: int) -> torch.Tensor:
@@ -80,7 +83,8 @@ class BLTSpaceDataset(Dataset):
         marker[tokens_length - 1] = 1
         marker[0] = 1
         marker = marker.cumsum(0)
-        return marker
+        patch_num = marker.max() - 1
+        return marker, patch_num
 
 
 # if __name__ == "__main__":

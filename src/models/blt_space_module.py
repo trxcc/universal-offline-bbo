@@ -110,21 +110,30 @@ class BLTSpaceEmbedModule(LightningModule):
         x: Tuple[BatchEncoding],
         m: Tuple[BatchEncoding],
         patch_ids: Tuple[BatchEncoding],
+        patch_num: torch.Tensor,
     ) -> torch.Tensor:
         # assert x.dtype in [torch.long, torch.int64]
         # assert entropy_patch_start_idx.dtype in [torch.long, torch.int64]
         # assert torch.all(entropy_patch_start_idx >= 0)
         x_emb = x.to(self.device)
         patch_ids = patch_ids.to(self.device)
-        try:
-            x_emb = self.embedder(x_emb, patch_ids=patch_ids)
-        except Exception as e:
-            print(e)
-            print("module forward error")
-            print(patch_ids.shape)
-            print(x.shape)
-            print(self.embedder.tok_embeddings.weight.shape)
-            raise e
+        # try:
+        x_emb = self.embedder(x_emb, patch_ids=patch_ids)
+        # except Exception as e:
+        #     print(e)
+        #     print("module forward error")
+        #     print(patch_ids.shape)
+        #     print(x.shape)
+        #     print(self.embedder.tok_embeddings.weight.shape)
+        #     raise e
+        batch_size, max_len = x_emb.size()[:2]
+        patch_num = patch_num.squeeze(-1)
+        mask = torch.arange(max_len, device=x_emb.device)[None, :] < patch_num[
+            :, None
+        ]  # [bsz, max_len]
+        mask = mask.unsqueeze(-1).float()
+        x_emb = (x_emb * mask).sum(dim=1) / patch_num.unsqueeze(1).float()  # [bsz, hidden_size]
+
 
         if self.has_metadata:
             m_emb = self._emb_metadata(m)
@@ -166,7 +175,8 @@ class BLTSpaceEmbedModule(LightningModule):
         m = batch["metadata"]
         task_names = batch["task_names"]
         space_patch_start_idx = batch["space_patch_start_idx"]
-        preds = self.forward(x, m, space_patch_start_idx)
+        patch_num = batch["patch_num"].to(self.device)
+        preds = self.forward(x, m, space_patch_start_idx, patch_num)
         loss = self.criterion(preds.squeeze(), y.squeeze())
         return loss, preds, y, task_names
 
@@ -316,9 +326,10 @@ class BLTSpaceEmbedModule(LightningModule):
                 m = batch["metadata"]
                 task_names = batch["task_names"]
                 space_patch_start_idx = batch["space_patch_start_idx"]
+                patch_num = batch["patch_num"].to(self.device)
 
                 y = y.to(self.device)
-                preds = self.forward(x, m, space_patch_start_idx)
+                preds = self.forward(x, m, space_patch_start_idx, patch_num)
                 for i, task_name in enumerate(task_names):
                     task_preds[task_name].append(preds[i].squeeze())
                     task_targets[task_name].append(y[i].squeeze())

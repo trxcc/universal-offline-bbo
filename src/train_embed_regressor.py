@@ -32,6 +32,7 @@ root_dir = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=
 from src.searcher.base import BaseSearcher
 from src.tasks import get_tasks
 from src.tasks.base import OfflineBBOTask
+from src.tasks import get_tasks_from_suites
 from src.utils import (
     RankedLogger,
     extras,
@@ -126,7 +127,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 model.load_state_dict(new_state_dict)
 
         task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
-        tasks = get_tasks(task_names, root_dir=root_dir)
+        tasks = get_tasks_from_suites(task_names, root_dir=root_dir)
         score_dict = {}
 
         for task_name, task_instance in zip(task_names, tasks):

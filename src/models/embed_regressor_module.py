@@ -33,8 +33,9 @@ class EmbedRegressorModule(LightningModule):
         metadata_projector: Optional[nn.Module] = None,
         metadata_projector_output_dim: Optional[int] = None,
         metadata_embedder_optimizer: Optional[torch.optim.Optimizer] = None,
-        cat_metadata: Optional[bool] = False,
-        from_pretrained: Optional[bool] = True,
+        cat_metadata: bool = False,
+        from_pretrained: bool = True,
+        finetune_embedder: bool = True,
     ) -> None:
         super().__init__()
 
@@ -57,7 +58,7 @@ class EmbedRegressorModule(LightningModule):
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
         self.cat_metadata = cat_metadata
-
+        self.finetune_embedder = finetune_embedder
         self.has_metadata = (
             (metadata_embedder is not None)
             and (metadata_embedder_output_dim is not None)
@@ -105,9 +106,13 @@ class EmbedRegressorModule(LightningModule):
         return emb_m
 
     def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding]) -> torch.Tensor:
-        encoded_input = x.to(self.device)
-        x_emb = self.embedder(**encoded_input)
-        x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
+        context = (
+            torch.no_grad() if not self.finetune_embedder else nullcontext()
+        )
+        with context:
+            encoded_input = x.to(self.device)
+            x_emb = self.embedder(**encoded_input)
+            x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
 
         if self.has_metadata:
             m_emb = self._emb_metadata(m)
@@ -121,22 +126,26 @@ class EmbedRegressorModule(LightningModule):
     def _mean_pooling(
         self, model_output: Tuple[torch.Tensor], attention_mask: torch.Tensor
     ) -> torch.Tensor:
-        # First element of model_output contains all token embeddings
-        token_embeddings: torch.Tensor = model_output[
-            0
-        ]  # Shape: [batch_size, sequence_length, hidden_size]
-        input_mask_expanded: torch.Tensor = (
-            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        )  # Shape: [batch_size, sequence_length, hidden_size]
+        context = (
+            torch.no_grad() if not self.finetune_embedder else nullcontext()
+        )
+        with context:
+            # First element of model_output contains all token embeddings
+            token_embeddings: torch.Tensor = model_output[
+                0
+            ]  # Shape: [batch_size, sequence_length, hidden_size]
+            input_mask_expanded: torch.Tensor = (
+                attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+            )  # Shape: [batch_size, sequence_length, hidden_size]
 
-        sum_embeddings: torch.Tensor = torch.sum(
-            token_embeddings * input_mask_expanded, 1
-        )  # Shape: [batch_size, hidden_size]
-        sum_mask: torch.Tensor = torch.clamp(
-            input_mask_expanded.sum(1), min=1e-9
-        )  # Shape: [batch_size, hidden_size]
+            sum_embeddings: torch.Tensor = torch.sum(
+                token_embeddings * input_mask_expanded, 1
+            )  # Shape: [batch_size, hidden_size]
+            sum_mask: torch.Tensor = torch.clamp(
+                input_mask_expanded.sum(1), min=1e-9
+            )  # Shape: [batch_size, hidden_size]
 
-        return sum_embeddings / sum_mask  # Shape: [batch_size, hidden_size]
+            return sum_embeddings / sum_mask  # Shape: [batch_size, hidden_size]
 
     def on_train_start(self) -> None:
         self.val_loss.reset()
@@ -161,24 +170,27 @@ class EmbedRegressorModule(LightningModule):
         if self.optimize_metadata_embedder:
             opt_regress, opt_embed, opt_m_embed = self.optimizers()
             opt_m_embed.zero_grad()
-        else:
+        elif self.finetune_embedder:
             opt_regress, opt_embed = self.optimizers()
+            opt_embed.zero_grad()   
+        else:
+            opt_regress = self.optimizers()
         opt_regress.zero_grad()
-        opt_embed.zero_grad()
 
         loss, preds, targets, task_names = self.model_step(batch)
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
         torch.nn.utils.clip_grad_norm_(self.regressor.parameters(), max_norm=0.5)
-
+        if self.finetune_embedder:
+            torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
         if self.optimize_metadata_embedder:
             torch.nn.utils.clip_grad_norm_(
                 self.metadata_embedder.parameters(), max_norm=0.5
             )
 
-        opt_embed.step()
         opt_regress.step()
+        if self.finetune_embedder:
+            opt_embed.step() 
         if self.optimize_metadata_embedder:
             opt_m_embed.step()
 
@@ -255,9 +267,6 @@ class EmbedRegressorModule(LightningModule):
             regressor_params = self.trainer.model.parameters()
 
         optimizer = self.hparams.regressor_optimizer(params=regressor_params)
-        embedder_optimizer = self.hparams.embedder_optimizer(
-            params=self.embedder.parameters()
-        )
 
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
@@ -270,12 +279,15 @@ class EmbedRegressorModule(LightningModule):
                         "frequency": 1,
                     },
                 },
-                {
-                    "optimizer": embedder_optimizer,
-                },
             ]
         else:
-            optimizers = [optimizer, embedder_optimizer]
+            optimizers = [{"optimizer": optimizer}]
+            
+        if self.hparams.finetune_embedder:
+            embedder_optimizer = self.hparams.embedder_optimizer(
+                params=self.embedder.parameters()
+            )
+            optimizers.append({"optimizer": embedder_optimizer})
 
         if self.optimize_metadata_embedder:
             optimizers.append({"optimizer": metadata_embedder_optimizer})

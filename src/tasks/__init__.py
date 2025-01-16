@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from src.tasks.base import OfflineBBOTask
 
@@ -129,8 +129,8 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
     return tasks
 
 
-def get_tasks_from_suites(task_suites: str, root_dir: Path) -> List[OfflineBBOTask]:
-    assert task_suites.loweer() in [
+def get_tasks_from_suites(task_suites: str, root_dir: Path) -> Tuple[List[str], List[OfflineBBOTask]]:
+    assert task_suites.lower() in [
         "design_bench",
         "soo_bench",
         "bboplace_bench",
@@ -175,4 +175,4 @@ def get_tasks_from_suites(task_suites: str, root_dir: Path) -> List[OfflineBBOTa
                     continue
                 task_name = os.path.splitext(filename)[0]
                 task_names.append(task_name)
-    return get_tasks(task_names, root_dir)
+    return task_names, get_tasks(task_names, root_dir)

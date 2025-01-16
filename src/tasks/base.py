@@ -97,7 +97,8 @@ class OfflineBBOTask(BaseTask):
         return score_dict
 
     def evaluate_stability(self, x: List[np.ndarray]) -> float:
-        y = self._evaluate(x)
+        y = [self._evaluate(x0) for x0 in x]
+        y = np.array([y0.max.item() for y0 in y])
         d_best = self.y_np.max()
         y_max = y.max()
         if y_max < d_best:
@@ -105,7 +106,7 @@ class OfflineBBOTask(BaseTask):
         elif y_max == d_best:
             return 0
 
-        opt_steps = x.shape[0]
+        opt_steps = len(y)
         r = np.array([i for i in range(opt_steps)])
         s_d = d_best * opt_steps
         s_0 = y_max * opt_steps

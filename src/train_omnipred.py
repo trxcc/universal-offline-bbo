@@ -30,7 +30,7 @@ root_dir = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=
 # ------------------------------------------------------------------------------------ #
 
 from src.searcher.base import BaseSearcher
-from src.tasks import get_tasks
+from src.tasks import get_tasks, get_tasks_from_suites
 from src.tasks.base import OfflineBBOTask
 from src.utils import (
     RankedLogger,
@@ -130,8 +130,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
 
-        task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
-        tasks = get_tasks(task_names, root_dir=root_dir)
+        # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
+        # tasks = get_tasks(task_names, root_dir=root_dir)
+        task_names, tasks = get_tasks_from_suites('co', root_dir)
         score_dict = {}
 
         for task_name, task_instance in zip(task_names, tasks):
@@ -154,10 +155,10 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             for k, v in tmp_dict.items():
                 res_dict[f"{task_name}/{k}"] = v
 
-            if task.eval_stability:
-                X_all = searcher.X_all
-                stability = task.evaluate_stability(X_all)
-                res_dict[f"{task_name}/stability"] = stability
+            # if task.eval_stability:
+            #     X_all = searcher.X_all
+            #     stability = task.evaluate_stability(X_all)
+            #     res_dict[f"{task_name}/stability"] = stability
 
             score_dict.update(res_dict)
 
@@ -165,6 +166,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             csv_dir = root_dir / "csv_results"
             for score_desc, score in res_dict.items():
                 log.info(f"{score_desc}: {score}")
+                print(score_desc)
                 task_, metric_ = score_desc.split("/")
                 save_metric_to_csv(
                     results_dir=csv_dir,
@@ -223,3 +225,4 @@ if __name__ == "__main__":
 # logs/baseline_omnipred_24m/runs/2025-01-13_17-27-20_seed42/checkpoints/last.ckpt
 # logs/baseline_omnipred_24m/runs/2025-01-13_22-48-34_seed42/checkpoints/last.ckpt
 # logs/baseline_omnipred_24m/runs/2025-01-13_23-39-10_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-14_01-42-14_seed42/checkpoints/last.ckpt

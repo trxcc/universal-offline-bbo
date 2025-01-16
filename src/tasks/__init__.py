@@ -129,7 +129,9 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
     return tasks
 
 
-def get_tasks_from_suites(task_suites: str, root_dir: Path) -> Tuple[List[str], List[OfflineBBOTask]]:
+def get_tasks_from_suites(
+    task_suites: str, root_dir: Path
+) -> Tuple[List[str], List[OfflineBBOTask]]:
     assert task_suites.lower() in [
         "design_bench",
         "soo_bench",
@@ -148,7 +150,14 @@ def get_tasks_from_suites(task_suites: str, root_dir: Path) -> Tuple[List[str], 
     elif task_suites.lower() == "co":
         task_names = CO_TASKS
     elif task_suites.lower() == "hpob":
-        task_names = ["HPOB_5889", "HPOB_5906"]
+        task_names = []
+        for filename in os.listdir(root_dir / "data"):
+            filepath = os.path.join(root_dir / "data", filename)
+            if os.path.isfile(filepath) and filename.endswith(".json"):
+                if not filename.startswith(("HPOB_5889", "HPOB_5906")):
+                    continue
+                task_name = os.path.splitext(filename)[0]
+                task_names.append(task_name)
     elif task_suites.lower() == "real_world":
         task_names = []
         for filename in os.listdir(root_dir / "data"):

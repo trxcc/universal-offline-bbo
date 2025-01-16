@@ -132,7 +132,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
         # tasks = get_tasks(task_names, root_dir=root_dir)
-        task_names, tasks = get_tasks_from_suites('co', root_dir)
+        task_names, tasks = get_tasks_from_suites("hpob", root_dir)
         score_dict = {}
 
         for task_name, task_instance in zip(task_names, tasks):

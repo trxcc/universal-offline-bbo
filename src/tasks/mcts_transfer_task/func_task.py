@@ -74,11 +74,11 @@ class BBOBTask(OfflineBBOTask):
     @property
     def eval_stability(self) -> bool:
         return True
-    
+
     def _evaluate(self, x: np.ndarray) -> np.ndarray:
         x = x.reshape(-1, self.x_np.shape[1])
         return self.eval_function(x)
-    
+
     @property
     def bounds(self) -> Tuple[np.ndarray, np.ndarray]:
         return np.full(self.ndim_problem, -5), np.full(self.ndim_problem, 5)
@@ -160,7 +160,7 @@ class RealWorldTask(OfflineBBOTask):
     @property
     def eval_stability(self) -> bool:
         return False
-    
+
     def _evaluate(self, x: np.ndarray) -> np.ndarray:
         x = x.reshape(-1, self.x_np.shape[1])
         return self.eval_function(x)
@@ -200,7 +200,7 @@ class HPOBTask(OfflineBBOTask):
                 "y": np.array(dataset["y"]).squeeze() * (-1),
             }  # For maximization
 
-        self.problem = HPOBProblem(search_space_id, dataset_id, root_dir)
+        self.problem = HPOBProblem(search_space_id, dataset_id, data_dir)
         self.eval_function = lambda x: self.problem(x) * (-1)  # For maximization
 
         self.did_in_data = dataset_id in self.did2md.keys()
@@ -231,7 +231,7 @@ class HPOBTask(OfflineBBOTask):
     @property
     def eval_stability(self) -> bool:
         return False
-    
+
     def _evaluate(self, x: np.ndarray) -> np.ndarray:
         x = x.reshape(-1, self.x_np.shape[1])
         return self.eval_function(x)

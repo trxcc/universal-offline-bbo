@@ -43,7 +43,7 @@ from src.utils import (
     model_fitness_function_string,
     task_wrapper,
 )
-from src.utils.io_utils import load_task_names
+from src.utils.io_utils import load_task_names, save_metric_to_csv
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -126,8 +126,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
 
-        task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
-        tasks = get_tasks_from_suites(task_names, root_dir=root_dir)
+        # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
+        # tasks = get_tasks(task_names, root_dir=root_dir)
+        task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
         for task_name, task_instance in zip(task_names, tasks):
@@ -140,17 +141,37 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 score_fn=lambda x: model_fitness_function_string(
                     x, m=m, model=model, datamodule=datamodule
                 ),
+                EVAL_STABILITY=task.eval_stability,
             )
 
             x_res = searcher.run()
+
             tmp_dict = task_instance.evaluate(x_res, return_normalized_y=True)
             res_dict = {}
             for k, v in tmp_dict.items():
-                res_dict[f"{task_name}-{k}"] = v
+                res_dict[f"{task_name}/{k}"] = v
+
+            if task_instance.eval_stability:
+                X_all = searcher.X_all
+                stability = task_instance.evaluate_stability(X_all)
+                res_dict[f"{task_name}/stability"] = stability
+
             score_dict.update(res_dict)
+
             log.info("Final score statistics:")
+            csv_dir = root_dir / "csv_results"
             for score_desc, score in res_dict.items():
                 log.info(f"{score_desc}: {score}")
+                print(score_desc)
+                task_, metric_ = score_desc.split("/")
+                save_metric_to_csv(
+                    results_dir=csv_dir,
+                    task_name=task_,
+                    model_name=cfg.task_name,
+                    seed=cfg.get("seed"),
+                    metric_value=score,
+                    metric_name=metric_,
+                )
                 for logger0 in logger:
                     logger0.log_metrics({score_desc: score}, step=1)
 
@@ -200,3 +221,4 @@ if __name__ == "__main__":
 # logs/embed_regress_multitask_m_cat_from_scratch/runs/2025-01-10_00-04-59_seed42/checkpoints/last.ckpt
 # logs/baseline_embed_regress_proj_t5/runs/2025-01-13_17-45-47_seed42/checkpoints/last.ckpt
 # logs/baseline_embed_regress_t5_m_cat_from_scratch/runs/2025-01-13_14-27-10_seed42/checkpoints/last.ckpt
+# logs/baseline_embed_regress_t5_m_cat_from_scratch/runs/2025-01-13_23-46-04_seed42/checkpoints/last.ckpt

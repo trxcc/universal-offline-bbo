@@ -1,2 +1,5 @@
-task,baseline_omnipred_24m
-gtopx_data_2_1,1.1873004928325788
+task,baseline_omnipred_24m,baseline_embed_regress_t5_m_cat_from_scratch,baseline_embed_regress_proj_t5
+gtopx_data_2_1,1.1873004928325788,1.1873004928325788,1.0338184616261
+gtopx_data_3_1,,1.0842433609309703,1.0568559377346245
+gtopx_data_4_1,,1.1353475486969602,1.0314609612985597
+gtopx_data_6_1,,1.260266085463311,1.0505584441649138

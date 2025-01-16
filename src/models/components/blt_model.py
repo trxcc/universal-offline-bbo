@@ -444,7 +444,7 @@ class LocalDecoder(nn.Module):
         num_heads: int,
         num_cross_attn_heads: int,
         dropout: float,
-        vocab_size: int=258,
+        vocab_size: int = 258,
     ):
         super().__init__()
         self.d_model = d_model
@@ -464,17 +464,13 @@ class LocalDecoder(nn.Module):
         self.norm = RMSNorm(d_model)
         self.out_proj = nn.Linear(d_model, vocab_size)
 
-    def forward(
-        self, token_embeds: torch.Tensor, patch_embeds: torch.Tensor
-    ):
+    def forward(self, token_embeds: torch.Tensor, patch_embeds: torch.Tensor):
         bs, seqlen, _ = token_embeds.shape
         freq_cis = self.rotary_embedding(seqlen=seqlen)
         h = token_embeds
         h = F.dropout(h, self.dropout)
         for i, layer in enumerate(self.layers):
-            h_cross = self.cross_attn_layers[i](
-                patch_embeds, h
-            )
+            h_cross = self.cross_attn_layers[i](patch_embeds, h)
             h = h_cross + h
             h = layer(h, freq_cis)
         h_pred = self.norm(h)
@@ -527,6 +523,7 @@ class BLTEmbedder(nn.Module):
         self.local_encoder.init_weights(init_std, factor)
         self.global_transformer.init_weights(init_std, factor)
 
+
 class BLT(nn.Module):
     def __init__(
         self,
@@ -543,16 +540,34 @@ class BLT(nn.Module):
         vocab_size: int = 258,
     ):
         super().__init__()
-        self.embedder = BLTEmbedder(d_model, d_output, num_encoder_layers, num_embedder_layers, num_heads, dropout, cross_attn_nheads, max_seq_len, max_patch_len)
-        self.decoder = LocalDecoder(d_model, num_decoder_layers, num_heads, cross_attn_nheads, dropout, vocab_size)
+        self.embedder = BLTEmbedder(
+            d_model,
+            d_output,
+            num_encoder_layers,
+            num_embedder_layers,
+            num_heads,
+            dropout,
+            cross_attn_nheads,
+            max_seq_len,
+            max_patch_len,
+        )
+        self.decoder = LocalDecoder(
+            d_model,
+            num_decoder_layers,
+            num_heads,
+            cross_attn_nheads,
+            dropout,
+            vocab_size,
+        )
 
     def forward(self, x: torch.Tensor, patch_ids: torch.Tensor):
         h, patch_embeds = self.embedder(x, patch_ids)
         return self.decoder(h, patch_embeds)
-    
+
     def init_weights(self, init_std=None, factor=1.0):
         self.embedder.init_weights(init_std, factor)
         self.decoder.init_weights(init_std, factor)
+
 
 if __name__ == "__main__":
     model = LocalEncoder(100, 128, 128, 2, 8, 8, 0.1, 1024)

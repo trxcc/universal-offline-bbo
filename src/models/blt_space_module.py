@@ -128,12 +128,13 @@ class BLTSpaceEmbedModule(LightningModule):
         #     raise e
         batch_size, max_len = x_emb.size()[:2]
         patch_num = patch_num.squeeze(-1)
-        mask = torch.arange(max_len, device=x_emb.device)[None, :] < patch_num[
-            :, None
-        ]  # [bsz, max_len]
+        mask = (
+            torch.arange(max_len, device=x_emb.device)[None, :] < patch_num[:, None]
+        )  # [bsz, max_len]
         mask = mask.unsqueeze(-1).float()
-        x_emb = (x_emb * mask).sum(dim=1) / patch_num.unsqueeze(1).float()  # [bsz, hidden_size]
-
+        x_emb = (x_emb * mask).sum(dim=1) / patch_num.unsqueeze(
+            1
+        ).float()  # [bsz, hidden_size]
 
         if self.has_metadata:
             m_emb = self._emb_metadata(m)

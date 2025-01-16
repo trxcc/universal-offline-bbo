@@ -1,5 +1,6 @@
+import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from src.tasks.base import OfflineBBOTask
 
@@ -30,6 +31,15 @@ BBOPLACE_BENCH_TASKS = [
 ]
 
 REAL_WORLD_TASKS_PREFIX = ["LunarLander", "RobotPush", "Rover"]
+
+CO_TASKS = [
+    "KP_50",
+    "KP_100",
+    "KP_200",
+    "TSP_20",
+    "TSP_50",
+    "TSP_100",
+]
 
 
 def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
@@ -62,6 +72,23 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
                 tasks.append(
                     BBOPlacementTask(benchmark_name=task_name, root_dir=root_dir)
                 )
+            elif task_entry in CO_TASKS:
+                from src.tasks.co_task import KPTask, TSPTask
+
+                task_name, problem_size = task_entry.split("_")
+                if task_name == "KP":
+                    tasks.append(
+                        KPTask(
+                            problem_size=int(problem_size), data_dir=root_dir / "data"
+                        )
+                    )
+                else:
+                    tasks.append(
+                        TSPTask(
+                            problem_size=int(problem_size), data_dir=root_dir / "data"
+                        )
+                    )
+
             elif task_entry.startswith(tuple(REAL_WORLD_TASKS_PREFIX)):
                 from src.tasks.mcts_transfer_task.func_task import RealWorldTask
 
@@ -100,3 +127,52 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
         except:
             raise ValueError(f"Unknown task entry: {task_entry}")
     return tasks
+
+
+def get_tasks_from_suites(task_suites: str, root_dir: Path) -> List[OfflineBBOTask]:
+    assert task_suites.loweer() in [
+        "design_bench",
+        "soo_bench",
+        "bboplace_bench",
+        "hpob",
+        "bbob",
+        "real_world",
+        "co",
+    ]
+    if task_suites.lower() == "design_bench":
+        task_names = DESIGN_BENCH_TASKS
+    elif task_suites.lower() == "soo_bench":
+        task_names = SOO_BENCH_TASKS
+    elif task_suites.lower() == "bboplace_bench":
+        task_names = BBOPLACE_BENCH_TASKS
+    elif task_suites.lower() == "co":
+        task_names = CO_TASKS
+    elif task_suites.lower() == "hpob":
+        task_names = ["HPOB_5889", "HPOB_5906"]
+    elif task_suites.lower() == "real_world":
+        task_names = []
+        for filename in os.listdir(root_dir / "data"):
+            filepath = os.path.join(root_dir / "data", filename)
+            if os.path.isfile(filepath) and filename.endswith(".json"):
+                if not filename.startswith(("LunarLander", "RobotPush", "Rover")):
+                    continue
+                task_name = os.path.splitext(filename)[0]
+                task_names.append(task_name)
+    elif task_suites.lower() == "bbob":
+        task_names = []
+        for filename in os.listdir(root_dir / "data"):
+            filepath = os.path.join(root_dir / "data", filename)
+            if os.path.isfile(filepath) and filename.endswith(".json"):
+                if not filename.startswith(
+                    (
+                        "GriewankRosenbrock",
+                        "Lunacek",
+                        "Rastrigin",
+                        "RosenbrockRotated",
+                        "SharpRidge",
+                    )
+                ):
+                    continue
+                task_name = os.path.splitext(filename)[0]
+                task_names.append(task_name)
+    return get_tasks(task_names, root_dir)

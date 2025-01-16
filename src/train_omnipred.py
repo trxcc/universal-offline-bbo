@@ -132,7 +132,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
         # tasks = get_tasks(task_names, root_dir=root_dir)
-        task_names, tasks = get_tasks_from_suites("hpob", root_dir)
+        task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
         for task_name, task_instance in zip(task_names, tasks):
@@ -155,10 +155,10 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             for k, v in tmp_dict.items():
                 res_dict[f"{task_name}/{k}"] = v
 
-            # if task.eval_stability:
-            #     X_all = searcher.X_all
-            #     stability = task.evaluate_stability(X_all)
-            #     res_dict[f"{task_name}/stability"] = stability
+            if task_instance.eval_stability:
+                X_all = searcher.X_all
+                stability = task_instance.evaluate_stability(X_all)
+                res_dict[f"{task_name}/stability"] = stability
 
             score_dict.update(res_dict)
 

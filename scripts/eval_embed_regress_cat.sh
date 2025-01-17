@@ -1,9 +1,9 @@
-# tasks="design_bench soo_bench co bboplace_bench bbob real_world hpob"
-tasks="soo_bench co bboplace_bench bbob real_world"
+tasks="soo_bench co bboplace_bench bbob real_world hpob"
+# tasks="soo_bench co bboplace_bench bbob real_world"
 ckpt_path="logs/baseline_embed_regress_t5_m_cat_from_scratch/runs/2025-01-13_23-46-04_seed42/checkpoints/last.ckpt"
 
-MAX_JOBS=1
-AVAILABLE_GPUS="2"
+MAX_JOBS=8
+AVAILABLE_GPUS="2 3"
 MAX_RETRIES=0
 
 get_gpu_allocation() {
@@ -55,7 +55,6 @@ for task in $tasks; do
             experiment=embed_regress_concat_t5 \
             ++seed=${seed} \
             ++train=false \
-            ++searcher.n_gen=2 \
             ++test_suites=${task} \
             ++ckpt_path=${ckpt_path}" \
             "$gpu_allocation" & 

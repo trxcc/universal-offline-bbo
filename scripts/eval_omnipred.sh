@@ -1,8 +1,8 @@
-# tasks="design_bench soo_bench co bboplace_bench bbob real_world hpob"
-tasks="design_bench soo_bench co bboplace_bench bbob real_world"
+tasks="design_bench soo_bench co bboplace_bench bbob real_world hpob"
+# tasks="design_bench soo_bench co bboplace_bench bbob real_world"
 ckpt_path="logs/baseline_omnipred_24m/runs/2025-01-14_01-42-14_seed42/checkpoints/last.ckpt"
 
-MAX_JOBS=2
+MAX_JOBS=4
 AVAILABLE_GPUS="0 1"
 MAX_RETRIES=0
 

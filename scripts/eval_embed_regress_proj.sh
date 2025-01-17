@@ -1,8 +1,8 @@
-# tasks="design_bench soo_bench co bboplace_bench bbob real_world hpob"
-tasks="soo_bench co bboplace_bench bbob real_world"
+tasks="design_bench soo_bench co bboplace_bench bbob real_world hpob"
+# tasks="soo_bench co bboplace_bench bbob real_world"
 ckpt_path="logs/baseline_embed_regress_proj_t5/runs/2025-01-13_23-54-36_seed42/checkpoints/last.ckpt"
 
-MAX_JOBS=1
+MAX_JOBS=6
 AVAILABLE_GPUS="3"
 MAX_RETRIES=0
 
@@ -55,7 +55,6 @@ for task in $tasks; do
             experiment=embed_regress_proj_t5 \
             ++seed=${seed} \
             ++train=false \
-            ++searcher.n_gen=2 \
             ++test_suites=${task} \
             ++ckpt_path=${ckpt_path}" \
             "$gpu_allocation" & 

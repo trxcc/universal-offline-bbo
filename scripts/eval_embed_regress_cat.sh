@@ -1,4 +1,4 @@
-tasks="soo_bench co bboplace_bench bbob real_world hpob"
+tasks="bboplace_bench"
 # tasks="soo_bench co bboplace_bench bbob real_world"
 ckpt_path="logs/baseline_embed_regress_t5_m_cat_from_scratch/runs/2025-01-13_23-46-04_seed42/checkpoints/last.ckpt"
 

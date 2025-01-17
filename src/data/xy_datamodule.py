@@ -1,5 +1,6 @@
 from typing import Any, Optional
 
+import numpy as np
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
@@ -58,13 +59,16 @@ class XYDataModule(LightningDataModule):
             self.y_values = self.task.y_np
             assert len(self.x_values) == len(self.y_values)
 
-            self.y_values = self.task.task.normalize_y(self.y_values)
+            # self.y_values = self.task.task.normalize_y(self.y_values)
+            self.y_values = (self.y_values - self.y_values.mean(axis=0)) / (self.y_values.std(axis=0) + 1e-10)
             if self.task.task_type == "Categorical":
                 self.x_values = self.task.task.to_logits(self.x_values)
                 self.x_values = self.x_values.reshape(self.x_values.shape[0], -1)
+            elif self.task.task_type in ["Interger", "Permutation"]:
+                self.x_values = self.x_values.astype(np.float32)
 
-            self.x_values = torch.from_numpy(self.x_values)
-            self.y_values = torch.from_numpy(self.y_values)
+            self.x_values = torch.from_numpy(self.x_values).to(dtype=torch.float32)
+            self.y_values = torch.from_numpy(self.y_values).to(dtype=torch.float32)
 
             dataset = TensorDataset(self.x_values, self.y_values)
             lengths = [

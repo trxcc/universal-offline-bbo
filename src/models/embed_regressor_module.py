@@ -106,9 +106,7 @@ class EmbedRegressorModule(LightningModule):
         return emb_m
 
     def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding]) -> torch.Tensor:
-        context = (
-            torch.no_grad() if not self.finetune_embedder else nullcontext()
-        )
+        context = torch.no_grad() if not self.finetune_embedder else nullcontext()
         with context:
             encoded_input = x.to(self.device)
             x_emb = self.embedder(**encoded_input)
@@ -126,9 +124,7 @@ class EmbedRegressorModule(LightningModule):
     def _mean_pooling(
         self, model_output: Tuple[torch.Tensor], attention_mask: torch.Tensor
     ) -> torch.Tensor:
-        context = (
-            torch.no_grad() if not self.finetune_embedder else nullcontext()
-        )
+        context = torch.no_grad() if not self.finetune_embedder else nullcontext()
         with context:
             # First element of model_output contains all token embeddings
             token_embeddings: torch.Tensor = model_output[
@@ -172,7 +168,7 @@ class EmbedRegressorModule(LightningModule):
             opt_m_embed.zero_grad()
         elif self.finetune_embedder:
             opt_regress, opt_embed = self.optimizers()
-            opt_embed.zero_grad()   
+            opt_embed.zero_grad()
         else:
             opt_regress = self.optimizers()
         opt_regress.zero_grad()
@@ -190,7 +186,7 @@ class EmbedRegressorModule(LightningModule):
 
         opt_regress.step()
         if self.finetune_embedder:
-            opt_embed.step() 
+            opt_embed.step()
         if self.optimize_metadata_embedder:
             opt_m_embed.step()
 
@@ -282,7 +278,7 @@ class EmbedRegressorModule(LightningModule):
             ]
         else:
             optimizers = [{"optimizer": optimizer}]
-            
+
         if self.hparams.finetune_embedder:
             embedder_optimizer = self.hparams.embedder_optimizer(
                 params=self.embedder.parameters()

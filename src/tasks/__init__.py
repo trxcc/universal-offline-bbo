@@ -23,11 +23,11 @@ SOO_BENCH_TASKS = [
 
 BBOPLACE_BENCH_TASKS = [
     "adaptec1",
-    "adaptec2",
-    "adaptec3",
-    "adaptec4",
-    "bigblue1",
-    "bigblue3",
+    # "adaptec2",
+    # "adaptec3",
+    # "adaptec4",
+    # "bigblue1",
+    # "bigblue3",
 ]
 
 REAL_WORLD_TASKS_PREFIX = ["LunarLander", "RobotPush", "Rover"]
@@ -70,7 +70,7 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
                 from src.tasks.bboplace_bench_task import BBOPlacementTask
 
                 tasks.append(
-                    BBOPlacementTask(benchmark_name=task_name, root_dir=root_dir)
+                    BBOPlacementTask(benchmark_name=task_entry, root_dir=root_dir)
                 )
             elif task_entry in CO_TASKS:
                 from src.tasks.co_task import KPTask, TSPTask

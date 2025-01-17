@@ -30,9 +30,8 @@ root_dir = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=
 # ------------------------------------------------------------------------------------ #
 
 from src.searcher.base import BaseSearcher
-from src.tasks import get_tasks
+from src.tasks import get_tasks, get_tasks_from_suites
 from src.tasks.base import OfflineBBOTask
-from src.tasks import get_tasks_from_suites
 from src.utils import (
     RankedLogger,
     extras,

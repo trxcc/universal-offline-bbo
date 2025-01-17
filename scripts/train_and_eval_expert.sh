@@ -1,7 +1,7 @@
 tasks="design_bench soo_bench co bboplace_bench bbob real_world hpob"
 
-MAX_JOBS=2
-AVAILABLE_GPUS="0 1"
+MAX_JOBS=16
+AVAILABLE_GPUS="2 3"
 MAX_RETRIES=0
 
 get_gpu_allocation() {

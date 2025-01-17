@@ -1,5 +1,6 @@
 from typing import Any, List, Optional
 
+import torch
 from torch.utils.data import Dataset
 
 
@@ -33,6 +34,20 @@ class OmnipredDataset(Dataset):
     def __len__(self):
         return len(self.x_data)
 
+    def _tokenize_and_pad(self, text: str) -> torch.Tensor:
+        tokens = self.tokenizer.encode(text, add_bos=True, add_eos=True)
+        pad_length = 0
+        tokens_length = len(tokens)
+        if tokens_length > self.tokenizer_max_length:
+            tokens = tokens[: self.tokenizer_max_length]
+            tokens_length = self.tokenizer_max_length
+
+        elif tokens_length < self.tokenizer_max_length:
+            pad_length = self.tokenizer_max_length - tokens_length
+            tokens = tokens + [0] * pad_length
+
+        return torch.tensor(tokens), pad_length, tokens_length
+
     def __getitem__(self, idx: int):
         x = str(self.x_data[idx])
         y = str(self.y_data[idx])
@@ -65,7 +80,7 @@ class OmnipredDataset(Dataset):
 
         # For T5, we need to replace padding tokens in labels with -100
         labels = y_tokens["input_ids"].squeeze()
-        labels[labels == self.output_tokenizer.pad_token_id] = -100
+        labels[labels == self.output_tokenizer.pad_token_id] = 0
 
         return {
             "input_ids": x_tokens["input_ids"].squeeze(),

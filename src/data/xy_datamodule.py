@@ -60,7 +60,9 @@ class XYDataModule(LightningDataModule):
             assert len(self.x_values) == len(self.y_values)
 
             # self.y_values = self.task.task.normalize_y(self.y_values)
-            self.y_values = (self.y_values - self.y_values.mean(axis=0)) / (self.y_values.std(axis=0) + 1e-10)
+            self.y_values = (self.y_values - self.y_values.mean(axis=0)) / (
+                self.y_values.std(axis=0) + 1e-10
+            )
             if self.task.task_type == "Categorical":
                 self.x_values = self.task.task.to_logits(self.x_values)
                 self.x_values = self.x_values.reshape(self.x_values.shape[0], -1)

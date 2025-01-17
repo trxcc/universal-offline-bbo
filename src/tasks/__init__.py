@@ -10,7 +10,7 @@ DESIGN_BENCH_TASKS = [
     "Superconductor-RandomForest-v0",
     "TFBind8-Exact-v0",
     "TFBind10-Exact-v0",
-    # Below are tasks that are not usually used in Design-Bench
+    # # Below are tasks that are not usually used in Design-Bench
     "HopperController-Exact-v0",
 ]
 
@@ -23,11 +23,11 @@ SOO_BENCH_TASKS = [
 
 BBOPLACE_BENCH_TASKS = [
     "adaptec1",
-    # "adaptec2",
-    # "adaptec3",
-    # "adaptec4",
-    # "bigblue1",
-    # "bigblue3",
+    "adaptec2",
+    "adaptec3",
+    "adaptec4",
+    "bigblue1",
+    "bigblue3",
 ]
 
 REAL_WORLD_TASKS_PREFIX = ["LunarLander", "RobotPush", "Rover"]

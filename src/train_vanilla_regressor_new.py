@@ -13,6 +13,7 @@ root_dir = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=
 from src.data.xy_datamodule import XYDataModule
 from src.models.components.mlp import SimpleMLP
 from src.searcher.ga import GASearcher
+from src.searcher.adam import AdamSearcher
 from src.tasks import get_tasks_from_suites
 from src.tasks.base import OfflineBBOTask
 from src.utils import (
@@ -31,6 +32,8 @@ log = RankedLogger(__name__, rank_zero_only=False)
 
 
 def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str):
+    print(task_name)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     x = task.x_np
     y = task.y_np
 
@@ -44,8 +47,9 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
             else task.ndim_problem
         ),
         hidden_dim=[2048, 2048],
-        require_batch_norm=True
-    )
+        require_batch_norm=True,
+    ).to(device)
+    model = torch.compile(model)
 
     save_dir = root_dir / "expert_models"
     os.makedirs(save_dir, exist_ok=True)
@@ -56,25 +60,33 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
     )
     criterion = nn.MSELoss(reduction="mean")
 
-    for e in range(args.max_epochs):
-        total_loss = 0
-        for x_batch, y_batch in datamodule.train_dataloader():
-            pred = model(x_batch)
-            loss = criterion(pred.squeeze(), y_batch.squeeze())
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-        lr_scheduler.step()
-        log.info(f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}")
-        print(f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}")
-        torch.save(
-            model.state_dict(),
-            save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt",
-        )
+    if os.path.exists(save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt"):
+        model.load_state_dict(torch.load(save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt"))
+
+    else:
+        for e in range(args.max_epochs):
+            total_loss = 0
+            for x_batch, y_batch in datamodule.train_dataloader():
+                x_batch = x_batch.to(device)
+                y_batch = y_batch.to(device)
+                pred = model(x_batch)
+                loss = criterion(pred.squeeze(), y_batch.squeeze())
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            lr_scheduler.step()
+            log.info(f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}")
+            print(f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}")
+            torch.save(
+                model.state_dict(),
+                save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt",
+            )
 
     searcher = GASearcher(
-        n_gen=200, EVAL_STABILITY=task.eval_stability, score_fn=lambda x: model_fitness_function(x, model=model, task=task),
+        n_gen=200,
+        EVAL_STABILITY=task.eval_stability,
+        score_fn=lambda x: model_fitness_function(x, model=model, task=task),
         task=task,
         num_solutions=128,
     )
@@ -103,6 +115,47 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
             results_dir=csv_dir,
             task_name=task_,
             model_name="Expert_GA",
+            seed=args.seed,
+            metric_value=score,
+            metric_name=metric_,
+        )
+        
+        
+    searcher = AdamSearcher(
+        n_steps=200,
+        search_step_size=1e-3,
+        model=model,
+        EVAL_STABILITY=task.eval_stability,
+        task=task,
+        num_solutions=128,
+        score_fn=lambda x: model(x)
+    )
+    
+    x_res = searcher.run()
+
+    score_dict = {}
+    tmp_dict = task.evaluate(x_res, return_normalized_y=True)
+    res_dict = {}
+    for k, v in tmp_dict.items():
+        res_dict[f"{task_name}/{k}"] = v
+
+    if task.eval_stability:
+        X_all = searcher.X_all
+        stability = task.evaluate_stability(X_all)
+        res_dict[f"{task_name}/stability"] = stability
+
+    score_dict.update(res_dict)
+
+    log.info("Final score statistics:")
+    csv_dir = root_dir / "csv_results"
+    for score_desc, score in res_dict.items():
+        log.info(f"{score_desc}: {score}")
+        print(f"{score_desc}: {score}")
+        task_, metric_ = score_desc.split("/")
+        save_metric_to_csv(
+            results_dir=csv_dir,
+            task_name=task_,
+            model_name="Expert_Grad",
             seed=args.seed,
             metric_value=score,
             metric_name=metric_,

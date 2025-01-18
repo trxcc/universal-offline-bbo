@@ -1,11 +1,10 @@
-import math
+from transformers import T5ForConditionalGeneration, AutoTokenizer
 
-a = "1E10"
-find_e = "e" in a.lower()
-print(a.index("e"))
-exp_scientific = (
-    int(a[a.index("e") + 1 :])
-    if find_e
-    else int(math.floor(math.log10(abs(float(a)))))
-)
-print(exp_scientific)
+model = T5ForConditionalGeneration.from_pretrained('google/byt5-small')
+tokenizer = AutoTokenizer.from_pretrained('google/byt5-small')
+
+model_inputs = tokenizer(["Life is like a box of chocolates.", "Today is Monday."], padding="longest", return_tensors="pt")
+labels = tokenizer(["La vie est comme une boîte de chocolat.", "Aujourd'hui c'est lundi."], padding="longest", return_tensors="pt").input_ids
+
+loss = model(**model_inputs, labels=labels).loss # forward pass
+print(loss)

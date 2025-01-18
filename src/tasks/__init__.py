@@ -10,7 +10,7 @@ DESIGN_BENCH_TASKS = [
     "Superconductor-RandomForest-v0",
     "TFBind8-Exact-v0",
     "TFBind10-Exact-v0",
-    # Below are tasks that are not usually used in Design-Bench
+    # # Below are tasks that are not usually used in Design-Bench
     "HopperController-Exact-v0",
 ]
 
@@ -70,7 +70,7 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
                 from src.tasks.bboplace_bench_task import BBOPlacementTask
 
                 tasks.append(
-                    BBOPlacementTask(benchmark_name=task_name, root_dir=root_dir)
+                    BBOPlacementTask(benchmark_name=task_entry, root_dir=root_dir)
                 )
             elif task_entry in CO_TASKS:
                 from src.tasks.co_task import KPTask, TSPTask

@@ -1,6 +1,5 @@
 from typing import Any, List, Optional
 
-import torch
 from torch.utils.data import Dataset
 
 
@@ -33,41 +32,28 @@ class OmnipredDataset(Dataset):
 
     def __len__(self):
         return len(self.x_data)
-    
-    def _tokenize_and_pad(self, text: str) -> torch.Tensor:
-        tokens = self.input_tokenizer.encode(text, add_bos=True, add_eos=True)
-        pad_length = 0
-        tokens_length = len(tokens)
-        if tokens_length > self.max_length:
-            tokens = tokens[: self.max_length]
-            tokens_length = self.max_length
-
-        elif tokens_length < self.max_length:
-            pad_length = self.max_length - tokens_length
-            tokens = tokens + [0] * pad_length
-
-        return torch.tensor(tokens), pad_length, tokens_length
-    
-    def get_space_patch_start_idx(self, text: str, tokens_length: int) -> torch.Tensor:
-        marker = torch.zeros(self.max_length, dtype=torch.int64)
-        char_tensor = torch.tensor([ord(c) for c in text[:tokens_length]])
-        space_idx = torch.where(char_tensor == 32)[0]
-        marker[space_idx] = 1
-        marker[tokens_length - 1] = 1
-        marker[0] = 1
-        marker = marker.cumsum(0)
-        patch_num = marker.max() - 1
-        return marker, patch_num
 
     def __getitem__(self, idx: int):
         x = str(self.x_data[idx])
         y = str(self.y_data[idx])
 
         # Encode input sequence
-        x_tokens, pad_length, tokens_length = self._tokenize_and_pad(x)
-        space_patch_start_idx, patch_num = self.get_space_patch_start_idx(x, tokens_length)
+        x_tokens = self.input_tokenizer(
+            x,
+            padding="max_length",
+            max_length=self.max_length,
+            truncation=True,
+            return_tensors="pt",
+        )
 
-        y_tokens, _, _ = self._tokenize_and_pad(y)
+        # Encode target sequence
+        y_tokens = self.output_tokenizer(
+            y,
+            padding="max_length",
+            max_length=self.max_length,
+            truncation=True,
+            return_tensors="pt",
+        )
 
         # Create decoder_input_ids
         decoder_input_ids = y_tokens["input_ids"].clone()
@@ -97,6 +83,6 @@ class OmnipredDataset(Dataset):
         shifted_input_ids[1:] = input_ids[:-1].clone()
 
         # Replace possible -100 values in input_ids with pad_token_id
-        shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
+        shifted_input_ids.masked_fill_(shifted_input_ids == 0, pad_token_id)
 
         return shifted_input_ids

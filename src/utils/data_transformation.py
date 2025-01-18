@@ -98,6 +98,8 @@ def model_fitness_function(
     if task.task_type == "Categorical":
         x = task.task.to_logits(x)
         x = x.reshape(x.shape[0], -1)
+    elif task.task_type in ["Integer", "Permutation"]:
+        x = x.astype(np.float32)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     x_torch = torch.from_numpy(x).to(device, dtype=torch.float32)

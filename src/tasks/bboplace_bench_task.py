@@ -63,7 +63,7 @@ class BBOPlacementTask(OfflineBBOTask):
         # if reevaluate:
         #     task_y = self.evaluate_func(task_x)
 
-        full_y_min, full_y_max = y_all.min(), y_all.max()
+        full_y_min, full_y_max = task_y.min(), task_y.max()
 
         self.benchmark_name = benchmark_name
 

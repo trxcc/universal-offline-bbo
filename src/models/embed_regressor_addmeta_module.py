@@ -60,7 +60,6 @@ class EmbedRegressorModule(LightningModule):
         self.cat_metadata = cat_metadata
         self.finetune_embedder = finetune_embedder
 
-
         self.metadata_embedder = metadata_embedder
 
         self.batch_norm = nn.BatchNorm1d(embedder_output_dim)
@@ -75,9 +74,7 @@ class EmbedRegressorModule(LightningModule):
         self.val_loss = MeanMetric()
 
     def _emb_metadata(self, m: Tuple[BatchEncoding]) -> torch.Tensor:
-        context = (
-            torch.no_grad() if not self.optimize_metadata_embedder else nullcontext()
-        )
+        context = torch.no_grad()
         with context:
             encoded_input = m.to(self.device)
             emb_m = self.metadata_embedder(**encoded_input)
@@ -139,10 +136,7 @@ class EmbedRegressorModule(LightningModule):
         batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]],
         batch_idx: int,
     ) -> torch.Tensor:
-        if self.optimize_metadata_embedder:
-            opt_regress, opt_embed, opt_m_embed = self.optimizers()
-            opt_m_embed.zero_grad()
-        elif self.finetune_embedder:
+        if self.finetune_embedder:
             opt_regress, opt_embed = self.optimizers()
             opt_embed.zero_grad()
         else:
@@ -159,8 +153,6 @@ class EmbedRegressorModule(LightningModule):
         opt_regress.step()
         if self.finetune_embedder:
             opt_embed.step()
-        if self.optimize_metadata_embedder:
-            opt_m_embed.step()
 
         self.train_loss(loss)
         self.log(
@@ -243,7 +235,6 @@ class EmbedRegressorModule(LightningModule):
                 params=self.embedder.parameters()
             )
             optimizers.append({"optimizer": embedder_optimizer})
-
 
         return optimizers
 

@@ -6,16 +6,22 @@ embedder:
   # pretrained_model_name_or_path: google-t5/t5-small
   config:
     _target_: transformers.T5Config
-    d_model: 384
-    d_ff: 1536  
-    num_layers: 6
-    num_heads: 6
+    d_model: 128
+    d_ff: 128
+    num_layers: 2
+    num_heads: 2
     vocab_size: 32128
-    max_position_embeddings: 256
+    max_position_embeddings: 128
     decoder_start_token_id: null
     use_cache: false
       
 embedder_output_dim: ${model.embedder.config.d_model}
+
+metadata_embedder:
+  _target_: transformers.T5EncoderModel.from_pretrained
+  pretrained_model_name_or_path: google-t5/t5-small
+
+metadata_embedder_output_dim: 512
 
 regressor:
   _target_: src.models.components.mlp.SimpleMLP

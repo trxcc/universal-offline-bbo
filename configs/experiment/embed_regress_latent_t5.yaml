@@ -35,6 +35,24 @@ trainer:
 
 model:
   from_pretrained: false
+  non_shuffled_datamodule:
+    _target_: src.data.string_input_datamodule.NonShuffledStringXYDataModule
+    task_names: ALL
+    val_ratio: 0.2 
+    batch_size: 128
+    num_workers: 64
+    persistent_workers: true
+    pin_memory: true
+
+    data_dir: data/
+
+    tokenizer:
+      _target_: transformers.T5Tokenizer.from_pretrained
+      pretrained_model_name_or_path: google-t5/t5-small
+
+    tokenizer_max_length: 512
+
+    cat_metadata: true 
 
 task:
   task_name: Superconductor-RandomForest-v0

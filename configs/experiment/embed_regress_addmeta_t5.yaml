@@ -31,13 +31,12 @@ model:
   metadata_embedder: 
     _target_: transformers.T5EncoderModel.from_pretrained
     pretrained_model_name_or_path: google-t5/t5-small
-  metadata_embedder_output_dim: 384
   
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: baseline_embed_regress_proj_t5
+task_name: baseline_embed_regress_proj_t5_addmeta
 
 logger:
   wandb:

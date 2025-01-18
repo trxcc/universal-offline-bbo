@@ -1,18 +1,42 @@
-_target_: src.data.omnipred_datamodule.OmnipredDataModule
-task_names: Superconductor-RandomForest-v0 
+_target_: src.models.omnipred_module.OmnipredModule
 
-input_tokenizer:
-  _target_: transformers.AutoTokenizer.from_pretrained
-  pretrained_model_name_or_path: google/byt5-small
-output_tokenizer:
-  _target_: src.data.components.tokenizer.P10Tokenizer
-max_length: 512
-concat_metadata: true
+model: 
+  _target_: transformers.T5ForConditionalGeneration
+  config:
+    _target_: transformers.T5Config
+    vocab_size: 259
+    num_encoder_layers: 15
+    num_decoder_layers: 5
+    d_kv: 32
+    d_model: 384
+    d_ff: 512
 
-val_ratio: 0.2
-batch_size: 128
-num_workers: 64
-persistent_workers: true
-pin_memory: false 
+input_tokenizer: ${data.input_tokenizer}
+output_tokenizer: ${data.output_tokenizer}
 
-data_dir: data/
+# optimizer:
+#   _target_: transformers.optimization.Adafactor
+#   _partial_: true
+#   lr: 0.01
+#   decay_rate: -0.5
+#   scale_parameter: true
+#   relative_step: false
+
+optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+  lr: 1e-4
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+  eps: 1e-8
+
+scheduler:
+  _target_: transformers.get_scheduler
+  _partial_: true
+  name: "cosine"
+  num_warmup_steps: 100
+  num_training_steps: ${trainer.max_epochs} 
+
+compile: true
+data_dir: ${data.data_dir}
+task_names: ${data.task_names}

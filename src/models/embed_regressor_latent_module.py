@@ -16,7 +16,7 @@ from src.utils.io_utils import load_task_names
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-class BLTEmbedModule(LightningModule):
+class EmbedRegressorLatentModule(LightningModule):
 
     def __init__(
         self,
@@ -28,33 +28,41 @@ class BLTEmbedModule(LightningModule):
         compile: bool,
         data_dir: Path,
         task_names: List[str],
-        entropy_model: Any,
-        entropy_model_checkpoint: str,
-        entropy_threshold: float,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         metadata_embedder: Optional[nn.Module] = None,
         metadata_embedder_output_dim: Optional[int] = None,
         metadata_projector: Optional[nn.Module] = None,
         metadata_projector_output_dim: Optional[int] = None,
         metadata_embedder_optimizer: Optional[torch.optim.Optimizer] = None,
-        cat_metadata: Optional[bool] = False,
-        from_pretrained: Optional[bool] = True,
+        cat_metadata: bool = False,
+        from_pretrained: bool = True,
+        finetune_embedder: bool = True,
+        finetune_interval: int = 10,
+        num_finetune_epochs: int = 3,
+        temperature: float = 0.07,
     ) -> None:
         super().__init__()
 
         self.save_hyperparameters(logger=False)
 
+        if not from_pretrained:
+
+            def init_weights(m):
+                if isinstance(m, (nn.Linear, nn.Embedding)):
+                    nn.init.trunc_normal_(m.weight, std=0.02, a=-0.04, b=0.04)
+                    if hasattr(m, "bias") and m.bias is not None:
+                        nn.init.zeros_(m.bias)
+
+            embedder.apply(init_weights)
+
         self.automatic_optimization = False
         self.task_names = load_task_names(task_names, data_dir)
 
         self.embedder = embedder
-        self.embedder.init_weights()
         self.embedder_output_dim = embedder_output_dim
         self.regressor = regressor
         self.cat_metadata = cat_metadata
-        self.entropy_model = entropy_model
-        self.entropy_model.load_from_checkpoint(entropy_model_checkpoint)
-        self.entropy_threshold = entropy_threshold
+        self.finetune_embedder = finetune_embedder
         self.has_metadata = (
             (metadata_embedder is not None)
             and (metadata_embedder_output_dim is not None)
@@ -91,6 +99,65 @@ class BLTEmbedModule(LightningModule):
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
 
+        self.finetune_interval = finetune_interval
+        self.num_finetune_epochs = num_finetune_epochs
+        self.temperature = temperature
+        self.in_finetune_mode = False
+        self.current_finetune_epoch = 0
+        
+        self.projection_head = nn.Sequential(
+            nn.Linear(embedder_output_dim, embedder_output_dim),
+            nn.ReLU(),
+            nn.Linear(embedder_output_dim, 128),
+        )
+        
+        if not from_pretrained:
+            self.projection_head.apply(init_weights)
+
+    def contrastive_loss(self, embeddings: torch.Tensor) -> torch.Tensor:
+        embeddings = F.normalize(embeddings, dim=1)
+        similarity_matrix = torch.matmul(embeddings, embeddings.T)
+
+        batch_size = embeddings.shape[0]
+        temperature = self.temperature
+        labels = torch.arange(batch_size, device=self.device)
+
+        similarity_matrix = similarity_matrix / temperature
+
+        pos_mask = F.one_hot(labels, num_classes=batch_size)
+        neg_mask = 1 - pos_mask
+
+        exp_logits = torch.exp(similarity_matrix)
+        log_prob = similarity_matrix - torch.log(exp_logits.sum(1, keepdim=True))
+
+        mean_log_prob_pos = (pos_mask * log_prob).sum(1) / pos_mask.sum(1)
+        loss = -mean_log_prob_pos.mean()
+
+        return loss
+
+    def finetune_embedder_step(
+        self, batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]]
+    ) -> torch.Tensor:
+        if self.finetune_embedder:
+            opt_regress, opt_embed = self.optimizers()
+            opt_embed.zero_grad()
+
+            x = batch["text"]
+            encoded_input = x.to(self.device)
+            embeddings = self.embedder(**encoded_input)
+            embeddings = self._mean_pooling(embeddings, encoded_input["attention_mask"])
+
+            projected = self.projection_head(embeddings)
+
+            loss = self.contrastive_loss(projected)
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
+            opt_embed.step()
+
+            return loss
+        return 0.0
+
     def _emb_metadata(self, m: Tuple[BatchEncoding]) -> torch.Tensor:
         context = (
             torch.no_grad() if not self.optimize_metadata_embedder else nullcontext()
@@ -101,26 +168,12 @@ class BLTEmbedModule(LightningModule):
             emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
         return emb_m
 
-    def forward(
-        self,
-        x: Tuple[BatchEncoding],
-        m: Tuple[BatchEncoding],
-        patch_ids: Tuple[BatchEncoding],
-    ) -> torch.Tensor:
-        # assert x.dtype in [torch.long, torch.int64]
-        # assert entropy_patch_start_idx.dtype in [torch.long, torch.int64]
-        # assert torch.all(entropy_patch_start_idx >= 0)
-        x_emb = x.to(self.device)
-        patch_ids = patch_ids.to(self.device)
-        try:
-            x_emb = self.embedder(x_emb, patch_ids=patch_ids)
-        except Exception as e:
-            print(e)
-            print("module forward error")
-            print(patch_ids.shape)
-            print(x.shape)
-            # print(self.embedder.tok_embeddings.weight.shape)
-            raise e
+    def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding]) -> torch.Tensor:
+        context = torch.no_grad() if not self.finetune_embedder else nullcontext()
+        with context:
+            encoded_input = x.to(self.device)
+            x_emb = self.embedder(**encoded_input)
+            x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
 
         if self.has_metadata:
             m_emb = self._emb_metadata(m)
@@ -134,24 +187,34 @@ class BLTEmbedModule(LightningModule):
     def _mean_pooling(
         self, model_output: Tuple[torch.Tensor], attention_mask: torch.Tensor
     ) -> torch.Tensor:
-        # First element of model_output contains all token embeddings
-        token_embeddings: torch.Tensor = model_output[
-            0
-        ]  # Shape: [batch_size, sequence_length, hidden_size]
-        input_mask_expanded: torch.Tensor = (
-            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        )  # Shape: [batch_size, sequence_length, hidden_size]
+        context = torch.no_grad() if not self.finetune_embedder else nullcontext()
+        with context:
+            # First element of model_output contains all token embeddings
+            token_embeddings: torch.Tensor = model_output[
+                0
+            ]  # Shape: [batch_size, sequence_length, hidden_size]
+            input_mask_expanded: torch.Tensor = (
+                attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+            )  # Shape: [batch_size, sequence_length, hidden_size]
 
-        sum_embeddings: torch.Tensor = torch.sum(
-            token_embeddings * input_mask_expanded, 1
-        )  # Shape: [batch_size, hidden_size]
-        sum_mask: torch.Tensor = torch.clamp(
-            input_mask_expanded.sum(1), min=1e-9
-        )  # Shape: [batch_size, hidden_size]
+            sum_embeddings: torch.Tensor = torch.sum(
+                token_embeddings * input_mask_expanded, 1
+            )  # Shape: [batch_size, hidden_size]
+            sum_mask: torch.Tensor = torch.clamp(
+                input_mask_expanded.sum(1), min=1e-9
+            )  # Shape: [batch_size, hidden_size]
 
-        return sum_embeddings / sum_mask  # Shape: [batch_size, hidden_size]
+            return sum_embeddings / sum_mask  # Shape: [batch_size, hidden_size]
 
-    def on_train_start(self) -> None:
+    def on_train_epoch_start(self) -> None:
+        if self.current_epoch % self.finetune_interval == 0:
+            if self.current_finetune_epoch < self.num_finetune_epochs:
+                self.in_finetune_mode = True
+            else:
+                self.in_finetune_mode = False
+                self.current_finetune_epoch = 0
+        else:
+            self.in_finetune_mode = False
         self.val_loss.reset()
 
     def model_step(
@@ -161,75 +224,45 @@ class BLTEmbedModule(LightningModule):
         y = batch["value"]
         m = batch["metadata"]
         task_names = batch["task_names"]
-        tokens_length = batch["tokens_length"]
-        patch_ids = self.get_entropy_patch_start_idx(x, tokens_length)
-        preds = self.forward(x, m, patch_ids)
+
+        preds = self.forward(x, m)
         loss = self.criterion(preds.squeeze(), y.squeeze())
         return loss, preds, y, task_names
-
-    def get_entropy_patch_start_idx(
-        self, text_tokens: torch.Tensor, tokens_length: torch.Tensor
-    ) -> torch.Tensor:
-        text_tokens = text_tokens.to(self.device)
-        with torch.no_grad():
-            logits = self.entropy_model(text_tokens)
-        entropy = self.entropy(logits)
-        start_idx = self.get_entropy_patch_idx(
-            entropy, self.entropy_threshold, tokens_length
-        )
-        return start_idx
-
-    def get_entropy_patch_idx(
-        self, entropy: torch.Tensor, threshold: float, tokens_length: torch.Tensor
-    ) -> torch.Tensor:
-        bsz, seq_len = entropy.shape
-
-        start_idx = torch.zeros_like(entropy, dtype=torch.bool)  # [bsz, seq_len]
-        start_idx[:, 0] = True
-
-        diff = entropy[:, 1:] - entropy[:, :-1]
-        start_idx[:, 1:] = diff > threshold
-
-        batch_indices = torch.arange(bsz, device=entropy.device)
-        start_idx[batch_indices, tokens_length.squeeze(-1) - 1] = True
-
-        start_idx_int = start_idx.long()  # [bsz, seq_len]
-
-        result = start_idx_int.cumsum(dim=1) - 1  # [bsz, seq_len]
-
-        return result
-
-    def entropy(self, logits: torch.Tensor) -> torch.Tensor:
-        probs = F.softmax(logits, dim=-1)
-        entropy = -torch.sum(probs * torch.log2(probs + 1e-10), dim=-1)
-        return entropy
 
     def training_step(
         self,
         batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]],
         batch_idx: int,
     ) -> torch.Tensor:
+        if self.in_finetune_mode:
+            contrastive_loss = self.finetune_embedder_step(batch)
+            self.log("train/contrastive_loss", contrastive_loss, on_step=True)
+            return contrastive_loss
+
         if self.optimize_metadata_embedder:
             opt_regress, opt_embed, opt_m_embed = self.optimizers()
             opt_m_embed.zero_grad()
-        else:
+        elif self.finetune_embedder:
             opt_regress, opt_embed = self.optimizers()
+            opt_embed.zero_grad()
+        else:
+            opt_regress = self.optimizers()
         opt_regress.zero_grad()
-        opt_embed.zero_grad()
 
         loss, preds, targets, task_names = self.model_step(batch)
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
         torch.nn.utils.clip_grad_norm_(self.regressor.parameters(), max_norm=0.5)
-
+        if self.finetune_embedder:
+            torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
         if self.optimize_metadata_embedder:
             torch.nn.utils.clip_grad_norm_(
                 self.metadata_embedder.parameters(), max_norm=0.5
             )
 
-        opt_embed.step()
         opt_regress.step()
+        if self.finetune_embedder:
+            opt_embed.step()
         if self.optimize_metadata_embedder:
             opt_m_embed.step()
 
@@ -246,6 +279,9 @@ class BLTEmbedModule(LightningModule):
         return loss
 
     def on_train_epoch_end(self) -> None:
+        if self.in_finetune_mode:
+            self.current_finetune_epoch += 1
+            
         if self.current_epoch % 5 == 0:
             self.compute_rank_corr(self.trainer.train_dataloader, "train")
 
@@ -287,6 +323,7 @@ class BLTEmbedModule(LightningModule):
         if self.hparams.compile and stage == "fit":
             self.regressor = torch.compile(self.regressor)
             self.embedder = torch.compile(self.embedder)
+            self.projection_head = torch.compile(self.projection_head)  
 
             if self.has_metadata:
                 self.metadata_embedder = torch.compile(self.metadata_embedder)
@@ -306,9 +343,6 @@ class BLTEmbedModule(LightningModule):
             regressor_params = self.trainer.model.parameters()
 
         optimizer = self.hparams.regressor_optimizer(params=regressor_params)
-        embedder_optimizer = self.hparams.embedder_optimizer(
-            params=self.embedder.parameters()
-        )
 
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
@@ -321,12 +355,19 @@ class BLTEmbedModule(LightningModule):
                         "frequency": 1,
                     },
                 },
-                {
-                    "optimizer": embedder_optimizer,
-                },
             ]
         else:
-            optimizers = [optimizer, embedder_optimizer]
+            optimizers = [{"optimizer": optimizer}]
+
+        if self.hparams.finetune_embedder:
+            embedder_params = chain(
+                self.embedder.parameters(),
+                self.projection_head.parameters()
+            )
+            embedder_optimizer = self.hparams.embedder_optimizer(
+                params=embedder_params
+            )
+            optimizers.append({"optimizer": embedder_optimizer})
 
         if self.optimize_metadata_embedder:
             optimizers.append({"optimizer": metadata_embedder_optimizer})
@@ -349,11 +390,9 @@ class BLTEmbedModule(LightningModule):
                 y = batch["value"]
                 m = batch["metadata"]
                 task_names = batch["task_names"]
-                tokens_length = batch["tokens_length"]
-                patch_ids = self.get_entropy_patch_start_idx(x, tokens_length)
 
                 y = y.to(self.device)
-                preds = self.forward(x, m, patch_ids)
+                preds = self.forward(x, m)
                 for i, task_name in enumerate(task_names):
                     task_preds[task_name].append(preds[i].squeeze())
                     task_targets[task_name].append(y[i].squeeze())

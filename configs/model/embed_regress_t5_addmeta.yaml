@@ -1,0 +1,47 @@
+_target_: src.models.embed_regressor_addmeta_module.EmbedRegressorModule
+
+  
+embedder:
+  _target_: src.models.components.addmeta_t5.CustomT5 #.from_pretrained
+  # pretrained_model_name_or_path: google-t5/t5-small
+  config:
+    _target_: transformers.T5Config
+    d_model: 512
+    d_ff: 1536  
+    num_layers: 6
+    num_heads: 6
+    vocab_size: 32128
+    max_position_embeddings: 256
+    decoder_start_token_id: null
+    use_cache: false
+      
+embedder_output_dim: ${model.embedder.config.d_model}
+
+regressor:
+  _target_: src.models.components.mlp.SimpleMLP
+  input_dim: ${model.embedder_output_dim}
+  hidden_dim: [2048, 2048]
+  output_dim: 1
+
+regressor_optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.0003
+  weight_decay: 0.00001
+
+scheduler: 
+  _target_: transformers.get_linear_schedule_with_warmup
+  _partial_: true
+  num_warmup_steps: 1000
+  num_training_steps: ${trainer.max_epochs}
+
+compile: true
+
+embedder_optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true 
+  lr: 0.00002
+  weight_decay: 0.00001
+
+data_dir: ${data.data_dir}
+task_names: ${data.task_names}

@@ -4,7 +4,7 @@
 # python train.py experiment=example
 
 defaults:
-  - override /data: embed_regress_t5
+  - override /data: embed_regress_t5_proj
   - override /model: embed_regress_t5
   - override /callbacks: default
   - override /trainer: default

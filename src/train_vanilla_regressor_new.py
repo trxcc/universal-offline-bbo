@@ -12,8 +12,8 @@ root_dir = rootutils.setup_root(__file__, indicator=".project-root", pythonpath=
 
 from src.data.xy_datamodule import XYDataModule
 from src.models.components.mlp import SimpleMLP
-from src.searcher.ga import GASearcher
 from src.searcher.adam import AdamSearcher
+from src.searcher.ga import GASearcher
 from src.tasks import get_tasks_from_suites
 from src.tasks.base import OfflineBBOTask
 from src.utils import (
@@ -61,7 +61,9 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
     criterion = nn.MSELoss(reduction="mean")
 
     if os.path.exists(save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt"):
-        model.load_state_dict(torch.load(save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt"))
+        model.load_state_dict(
+            torch.load(save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt")
+        )
 
     else:
         for e in range(args.max_epochs):
@@ -76,8 +78,12 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
                 optimizer.step()
                 total_loss += loss.item()
             lr_scheduler.step()
-            log.info(f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}")
-            print(f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}")
+            log.info(
+                f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}"
+            )
+            print(
+                f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}"
+            )
             torch.save(
                 model.state_dict(),
                 save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt",
@@ -119,8 +125,7 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
             metric_value=score,
             metric_name=metric_,
         )
-        
-        
+
     searcher = AdamSearcher(
         n_steps=200,
         search_step_size=1e-3,
@@ -128,9 +133,9 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
         EVAL_STABILITY=task.eval_stability,
         task=task,
         num_solutions=128,
-        score_fn=lambda x: model(x)
+        score_fn=lambda x: model(x),
     )
-    
+
     x_res = searcher.run()
 
     score_dict = {}

@@ -515,9 +515,10 @@ class BLTEmbedder(nn.Module):
         self.out_proj = nn.Linear(d_model * max_patch_len, d_output)
 
     def forward(self, x: torch.Tensor, patch_ids: torch.Tensor):
+        bsz, seqlen = x.shape
         x = self.local_encoder(x, patch_ids)
         x = self.global_transformer(x)
-        return x
+        return self.out_proj(x.view(bsz, -1))
 
     def init_weights(self, init_std=None, factor=1.0):
         self.local_encoder.init_weights(init_std, factor)

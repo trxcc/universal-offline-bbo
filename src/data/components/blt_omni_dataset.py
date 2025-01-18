@@ -33,7 +33,7 @@ class OmnipredDataset(Dataset):
 
     def __len__(self):
         return len(self.x_data)
-    
+
     def _tokenize_and_pad(self, text: str) -> torch.Tensor:
         tokens = self.input_tokenizer.encode(text, add_bos=True, add_eos=True)
         pad_length = 0
@@ -47,7 +47,7 @@ class OmnipredDataset(Dataset):
             tokens = tokens + [0] * pad_length
 
         return torch.tensor(tokens), pad_length, tokens_length
-    
+
     def get_space_patch_start_idx(self, text: str, tokens_length: int) -> torch.Tensor:
         marker = torch.zeros(self.max_length, dtype=torch.int64)
         char_tensor = torch.tensor([ord(c) for c in text[:tokens_length]])
@@ -65,7 +65,9 @@ class OmnipredDataset(Dataset):
 
         # Encode input sequence
         x_tokens, pad_length, tokens_length = self._tokenize_and_pad(x)
-        space_patch_start_idx, patch_num = self.get_space_patch_start_idx(x, tokens_length)
+        space_patch_start_idx, patch_num = self.get_space_patch_start_idx(
+            x, tokens_length
+        )
 
         y_tokens, _, _ = self._tokenize_and_pad(y)
 

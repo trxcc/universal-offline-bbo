@@ -1,9 +1,9 @@
 tasks="design_bench soo_bench co bbob real_world hpob"
 # tasks="soo_bench co bboplace_bench bbob real_world"
-ckpt_path="/root/autodl-tmp/universal-offline-bbo/logs/baseline_embed_regress_proj_t5_addmeta/runs/2025-01-18_22-18-59_seed42/checkpoints/last.ckpt"
+ckpt_path="/root/autodl-tmp/universal-offline-bbo/logs/blt/runs/2025-01-18_15-14-33_seed42/checkpoints/last.ckpt"
 
 MAX_JOBS=4
-AVAILABLE_GPUS="1,2"
+AVAILABLE_GPUS="2"
 MAX_RETRIES=0
 
 get_gpu_allocation() {
@@ -51,8 +51,8 @@ for task in $tasks; do
         check_jobs
         gpu_allocation=$(get_gpu_allocation $job_number)
         ((job_number++))
-        run_with_retry "src/train_embed_regressor.py \
-            experiment=embed_regress_addmeta_t5 \
+        run_with_retry "src/train_embed_blt.py \
+            experiment=blt \
             ++seed=${seed} \
             ++train=false \
             ++test_suites=${task} \

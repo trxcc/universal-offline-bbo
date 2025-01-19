@@ -85,6 +85,51 @@ def model_fitness_function_string(
 
     return y_np
 
+def blt_tokenize_and_pad(tokenizer, text: str, tokenizer_max_length: int) -> torch.Tensor:
+    tokens = tokenizer.encode(text, add_bos=True, add_eos=True)
+    pad_length = 0
+    tokens_length = len(tokens)
+    if tokens_length > tokenizer_max_length:
+        tokens = tokens[: tokenizer_max_length]
+        tokens_length = tokenizer_max_length
+
+    elif tokens_length < tokenizer_max_length:
+        pad_length = tokenizer_max_length - tokens_length
+        tokens = tokens + [0] * pad_length
+
+    return torch.tensor(tokens), pad_length, tokens_length
+
+@torch.no_grad()
+def blt_model_fitness_function_string(
+    x: np.ndarray, m: str, model: LightningModule, datamodule: LightningDataModule
+) -> np.ndarray:
+    model = model.to("cuda" if torch.cuda.is_available() else "cpu")
+    assert len(x.shape) == 1 or len(x.shape) == 2
+    if len(x.shape) == 1:
+        x = x.reshape(1, -1)
+
+    batch_size, n_var = x.shape
+    ms = tuple([m for _ in range(batch_size)])
+
+    def sol2str(single_solution):
+        res_str = ", ".join(
+            f"x{i}: {val.item()}" for i, val in enumerate(single_solution)
+        )
+        return res_str
+
+    x_str = [sol2str(x0) for x0 in x]
+    if datamodule.hparams.cat_metadata:
+        x_str = [f"{x0}. {m0}" for x0, m0 in zip(x_str, ms)]
+    x_tokens = blt_tokenize_and_pad(datamodule.hparams.tokenizer, x_str, datamodule.hparams.tokenizer_max_length)
+
+    m_tokens = blt_tokenize_and_pad(datamodule.hparams.tokenizer, ms, datamodule.hparams.tokenizer_max_length)
+    y_np = model(x_tokens, m_tokens).cpu().numpy()
+    assert len(y_np) == batch_size
+
+    return y_np
+
+
+
 
 @torch.no_grad()
 def model_fitness_function(

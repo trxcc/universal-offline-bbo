@@ -6,12 +6,12 @@ embedder:
   # pretrained_model_name_or_path: google-t5/t5-small
   config:
     _target_: transformers.T5Config
-    d_model: 128
-    d_ff: 128
-    num_layers: 2
-    num_heads: 2
+    d_model: 384
+    d_ff: 1536
+    num_layers: 6
+    num_heads: 6
     vocab_size: 32128
-    max_position_embeddings: 128
+    max_position_embeddings: 256
     decoder_start_token_id: null
     use_cache: false
       

@@ -46,7 +46,7 @@ model:
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: embed_regress_multitask_bpe
+task_name: embed_regress_bpe_t5
 
 logger:
   wandb:

@@ -39,6 +39,7 @@ class EmbedRegressorLatentModule(LightningModule):
         finetune_interval: int = 10,
         num_finetune_epochs: int = 3,
         temperature: float = 0.07,
+        if_use_detach_normalization: bool = True
     ) -> None:
         super().__init__()
 
@@ -230,7 +231,10 @@ class EmbedRegressorLatentModule(LightningModule):
             metric_attribute="train_con_loss",
         )
 
-        return loss * 0.1 + loss_lip
+        if self.hparams.if_use_detach_normalization:
+            return loss / loss.detach() + loss_lip / loss_lip.detach()
+        else:
+            return loss * 0.1 + loss_lip
 
     def _emb_metadata(self, m: Tuple[BatchEncoding]) -> torch.Tensor:
         context = (
@@ -326,7 +330,10 @@ class EmbedRegressorLatentModule(LightningModule):
             prog_bar=True,
             metric_attribute="train_mse",
         )
-        loss = loss + latent_space_loss
+        if self.hparams.if_use_detach_normalization:
+            loss = loss / loss.detach() + latent_space_loss
+        else:
+            loss = loss + latent_space_loss
 
         loss.backward()
 

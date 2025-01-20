@@ -138,17 +138,27 @@ class EmbedRegressorLatentModule(LightningModule):
     def lipschitz_loss(self, z, y, recon_weight=None):
         z = z.to(self.device)
         y = y.to(self.device)
+        
+        # if all ys are the same, return the mean of all zs
+        if torch.all(y == y[0]):
+            dif_z = torch.sqrt(
+                torch.sum((z.unsqueeze(1) - z.unsqueeze(0)) ** 2, dim=2) + 1e-10
+            )
+            return dif_z.mean()
+        
         dif_y = (y.unsqueeze(1) - y.unsqueeze(0)).squeeze(-1)
         dif_z = torch.sqrt(
             torch.sum((z.unsqueeze(1) - z.unsqueeze(0)) ** 2, dim=2) + 1e-10
         )
+        
         lips = abs(dif_y / (dif_z + 1e-10))
-
         ratio = lips - torch.median(lips)
-        # ratio = ratio * (recon_weight * recon_weight[:, None]).pow(0.5)
         ratio = ratio[ratio > 0]
+        
+        if len(ratio) == 0:
+            return torch.tensor(0.0, device=self.device)
+            
         loss = ratio.mean()
-
         return loss
 
     def finetune_embedder_step(
@@ -232,7 +242,7 @@ class EmbedRegressorLatentModule(LightningModule):
         )
 
         if self.hparams.if_use_detach_normalization:
-            return loss / loss.detach() + loss_lip / loss_lip.detach()
+            return loss, loss_lip
         else:
             return loss * 0.1 + loss_lip
 
@@ -331,7 +341,13 @@ class EmbedRegressorLatentModule(LightningModule):
             metric_attribute="train_mse",
         )
         if self.hparams.if_use_detach_normalization:
-            loss = loss / loss.detach() + latent_space_loss
+            loss1 = loss 
+            loss2, loss3 = latent_space_loss
+            if torch.isnan(loss1) or torch.isnan(loss2) or torch.isnan(loss3):
+                print(loss1, loss2, loss3)
+                print(preds, targets)
+                assert 0
+            loss = loss1 + loss2 / (loss2 / (loss1.detach() + 1e-10) + 1e-10).detach() + loss3 / (loss3 / (loss1.detach() + 1e-10) + 1e-10).detach()
         else:
             loss = loss + latent_space_loss
 

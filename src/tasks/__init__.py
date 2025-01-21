@@ -30,7 +30,11 @@ BBOPLACE_BENCH_TASKS = [
     "bigblue3",
 ]
 
-REAL_WORLD_TASKS_PREFIX = ["LunarLander", "RobotPush", "Rover"]
+REAL_WORLD_TASKS_PREFIX = [
+    "LunarLander",
+    "RobotPush",
+    "Rover"
+]
 
 CO_TASKS = [
     "KP_50",
@@ -45,7 +49,7 @@ CO_TASKS = [
 def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
     tasks = []
     for task_entry in task_names:
-        try:
+        # try:
             if task_entry in DESIGN_BENCH_TASKS:
                 from src.tasks.design_bench_task import DesignBenchTask
 
@@ -121,11 +125,11 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
                     BBOBTask(
                         task_name=task_name,
                         data_dir=root_dir / "data",
-                        func_seed=func_seed,
+                        func_seed=int(func_seed),
                     )
                 )
-        except:
-            raise ValueError(f"Unknown task entry: {task_entry}")
+        # except:
+        #     raise ValueError(f"Unknown task entry: {task_entry}")
     return tasks
 
 

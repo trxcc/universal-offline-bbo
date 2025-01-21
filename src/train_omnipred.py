@@ -42,7 +42,7 @@ from src.utils import (
     omnipred_fitness_function_string,
     task_wrapper,
 )
-from src.utils.io_utils import load_task_names, save_metric_to_csv
+from src.utils.io_utils import load_task_names, save_metric_to_csv, check_if_evaluated
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -135,7 +135,16 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
+        csv_dir = root_dir / "csv_results"
         for task_name, task_instance in zip(task_names, tasks):
+            if check_if_evaluated(
+                results_dir=csv_dir,
+                task_name=task_name,
+                model_name=cfg.task_name,
+                seed=cfg.get("seed"),
+                metric_name="score-100th",
+            ):
+                continue
             log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
             with open(f"./data/{task_name}.metadata", "r") as f:
                 m = f.read()

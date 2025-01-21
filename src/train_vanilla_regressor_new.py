@@ -26,7 +26,7 @@ from src.utils import (
     model_fitness_function,
     task_wrapper,
 )
-from src.utils.io_utils import load_task_names, save_metric_to_csv
+from src.utils.io_utils import load_task_names, save_metric_to_csv, check_if_evaluated
 
 log = RankedLogger(__name__, rank_zero_only=False)
 
@@ -36,8 +36,12 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     x = task.x_np
     y = task.y_np
+    # try:
+    #     task._evaluate(task.x_np)
+    # except:
+    #     return
 
-    datamodule = XYDataModule(task=task, num_workers=64, persistent_workers=False)
+    datamodule = XYDataModule(task=task, num_workers=4, persistent_workers=False)
     datamodule.setup()
 
     model = SimpleMLP(
@@ -75,6 +79,7 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
                 loss = criterion(pred.squeeze(), y_batch.squeeze())
                 optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
                 optimizer.step()
                 total_loss += loss.item()
             lr_scheduler.step()
@@ -84,94 +89,111 @@ def run_single_task(args: SimpleNamespace, task: OfflineBBOTask, task_name: str)
             print(
                 f"Epoch {e}, loss = {total_loss / len(datamodule.train_dataloader())}"
             )
-            torch.save(
+        torch.save(
                 model.state_dict(),
-                save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt",
+                save_dir / f"expert_seed_{args.seed}_task_{task_name}.pt"
+            )
+    csv_dir = root_dir / "csv_results"
+    if not check_if_evaluated(
+        results_dir=csv_dir,
+        task_name=task_name,
+        model_name="Expert_GA",
+        seed=args.seed,
+        metric_name="score-100th",
+    ):
+        searcher = GASearcher(
+            n_gen=200,
+            EVAL_STABILITY=task.eval_stability,
+            score_fn=lambda x: model_fitness_function(x, model=model, task=task),
+            task=task,
+            num_solutions=128,
+        )
+        x_res = searcher.run()
+
+        score_dict = {}
+        tmp_dict = task.evaluate(x_res, return_normalized_y=True)
+        res_dict = {}
+        for k, v in tmp_dict.items():
+            res_dict[f"{task_name}/{k}"] = v
+
+        if task.eval_stability:
+            X_all = searcher.X_all
+            stability = task.evaluate_stability(X_all)
+            res_dict[f"{task_name}/stability"] = stability
+
+        score_dict.update(res_dict)
+
+        log.info("Final score statistics:")
+        csv_dir = root_dir / "csv_results"
+        for score_desc, score in res_dict.items():
+            log.info(f"{score_desc}: {score}")
+            print(f"{score_desc}: {score}")
+            task_, metric_ = score_desc.split("/")
+            save_metric_to_csv(
+                results_dir=csv_dir,
+                task_name=task_,
+                model_name="Expert_GA",
+                seed=args.seed,
+                metric_value=score,
+                metric_name=metric_,
             )
 
-    searcher = GASearcher(
-        n_gen=200,
-        EVAL_STABILITY=task.eval_stability,
-        score_fn=lambda x: model_fitness_function(x, model=model, task=task),
-        task=task,
-        num_solutions=128,
-    )
-    x_res = searcher.run()
-
-    score_dict = {}
-    tmp_dict = task.evaluate(x_res, return_normalized_y=True)
-    res_dict = {}
-    for k, v in tmp_dict.items():
-        res_dict[f"{task_name}/{k}"] = v
-
-    if task.eval_stability:
-        X_all = searcher.X_all
-        stability = task.evaluate_stability(X_all)
-        res_dict[f"{task_name}/stability"] = stability
-
-    score_dict.update(res_dict)
-
-    log.info("Final score statistics:")
-    csv_dir = root_dir / "csv_results"
-    for score_desc, score in res_dict.items():
-        log.info(f"{score_desc}: {score}")
-        print(f"{score_desc}: {score}")
-        task_, metric_ = score_desc.split("/")
-        save_metric_to_csv(
-            results_dir=csv_dir,
-            task_name=task_,
-            model_name="Expert_GA",
-            seed=args.seed,
-            metric_value=score,
-            metric_name=metric_,
+    if not check_if_evaluated(
+        results_dir=csv_dir,
+        task_name=task_name,
+        model_name="Expert_Grad",
+        seed=args.seed,
+        metric_name="score-100th",
+    ):
+        searcher = AdamSearcher(
+            n_steps=200,
+            search_step_size=1e-3,
+            model=model,
+            EVAL_STABILITY=task.eval_stability,
+            task=task,
+            num_solutions=128,
+            score_fn=lambda x: model(x),
         )
 
-    searcher = AdamSearcher(
-        n_steps=200,
-        search_step_size=1e-3,
-        model=model,
-        EVAL_STABILITY=task.eval_stability,
-        task=task,
-        num_solutions=128,
-        score_fn=lambda x: model(x),
-    )
+        x_res = searcher.run()
 
-    x_res = searcher.run()
+        score_dict = {}
+        tmp_dict = task.evaluate(x_res, return_normalized_y=True)
+        res_dict = {}
+        for k, v in tmp_dict.items():
+            res_dict[f"{task_name}/{k}"] = v
 
-    score_dict = {}
-    tmp_dict = task.evaluate(x_res, return_normalized_y=True)
-    res_dict = {}
-    for k, v in tmp_dict.items():
-        res_dict[f"{task_name}/{k}"] = v
+        if task.eval_stability:
+            X_all = searcher.X_all
+            stability = task.evaluate_stability(X_all)
+            res_dict[f"{task_name}/stability"] = stability
 
-    if task.eval_stability:
-        X_all = searcher.X_all
-        stability = task.evaluate_stability(X_all)
-        res_dict[f"{task_name}/stability"] = stability
+        score_dict.update(res_dict)
 
-    score_dict.update(res_dict)
-
-    log.info("Final score statistics:")
-    csv_dir = root_dir / "csv_results"
-    for score_desc, score in res_dict.items():
-        log.info(f"{score_desc}: {score}")
-        print(f"{score_desc}: {score}")
-        task_, metric_ = score_desc.split("/")
-        save_metric_to_csv(
-            results_dir=csv_dir,
-            task_name=task_,
-            model_name="Expert_Grad",
-            seed=args.seed,
-            metric_value=score,
-            metric_name=metric_,
-        )
+        log.info("Final score statistics:")
+        csv_dir = root_dir / "csv_results"
+        for score_desc, score in res_dict.items():
+            log.info(f"{score_desc}: {score}")
+            print(f"{score_desc}: {score}")
+            task_, metric_ = score_desc.split("/")
+            save_metric_to_csv(
+                results_dir=csv_dir,
+                task_name=task_,
+                model_name="Expert_Grad",
+                seed=args.seed,
+                metric_value=score,
+                metric_name=metric_,
+            )
 
 
 def run(args: SimpleNamespace):
     L.seed_everything(args.seed)
     task_names, tasks = get_tasks_from_suites(args.task_suites, root_dir)
     for task_name, task in zip(task_names, tasks):
-        run_single_task(args, task, task_name)
+        try:
+            run_single_task(args, task, task_name)
+        except AssertionError as e:
+            print(f"Meet errors in running task: {task_name}")
 
 
 if __name__ == "__main__":
@@ -180,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--task_suites",
         type=str,
-        default="design_bench",
+        default="bboplace_bench",
         choices=[
             "design_bench",
             "soo_bench",

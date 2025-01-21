@@ -1,0 +1,41 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: embed_regress_t5
+  - override /model: embed_regress_t5_rnc
+  - override /callbacks: default
+  - override /trainer: default
+  - override /logger: wandb
+  - override /task: design_bench
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["universal", "embed_regress", "multi_task"]
+
+seed: 42
+
+data:
+  task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  batch_size: 128
+  tokenizer_max_length: 256
+
+trainer:
+  min_epochs: 2
+  max_epochs: 200
+  
+
+task:
+  task_name: Superconductor-RandomForest-v0
+
+task_name: baseline_embed_regress_t5_rnc
+
+logger:
+  wandb:
+    tags: ${tags}
+    project: "Universal"
+    group: ${task_name}
+    job_type: "train"

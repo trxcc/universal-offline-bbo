@@ -46,7 +46,7 @@ class BBOBTask(OfflineBBOTask):
         )  # since BBOB function is minimization
         # Besides, the data provide in mcts-transfer is maximizing
 
-        self.seed_in_data = func_seed in self.seed2md.keys()
+        self.seed_in_data = int(func_seed) in self.seed2md.keys()
         if not self.seed_in_data:
             warnings.warn(
                 f"Not support function seed in {task_name}. "
@@ -76,8 +76,7 @@ class BBOBTask(OfflineBBOTask):
         return True
 
     def _evaluate(self, x: np.ndarray) -> np.ndarray:
-        x = x.reshape(-1, self.x_np.shape[1])
-        return self.eval_function(x)
+        return np.array([self.eval_function(x0.squeeze()) for x0 in x])
 
     @property
     def bounds(self) -> Tuple[np.ndarray, np.ndarray]:

@@ -4,8 +4,8 @@
 # python train.py experiment=example
 
 defaults:
-  - override /data: blt_space
-  - override /model: blt_space
+  - override /data: omnipred
+  - override /model: omnipred
   - override /callbacks: default
   - override /trainer: default
   - override /logger: wandb
@@ -14,32 +14,31 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["universal", "embed_regress", "multi_task"]
+tags: ["universal", "omnipred", "test"]
 
 seed: 42
 
 data:
   task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  # task_names: Superconductor-RandomForest-v0
   batch_size: 128
+  concat_metadata: false
 
 trainer:
   min_epochs: 2
-  max_epochs: 200
-
+  max_epochs: 2
+  
 model:
-  cat_metadata: true
-
-  regressor:
-    input_dim: 384
+  numeric_interval: 200
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: blt
+task_name: omnipred_24m_nocat
 
 logger:
   wandb:
     tags: ${tags}
     project: "Universal"
-    group: "blt"
+    group: ${task_name}
     job_type: "train"

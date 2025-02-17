@@ -4,9 +4,9 @@
 # python train.py experiment=example
 
 defaults:
-  - override /data: embed_regress_t5
-  - override /model: embed_regress_t5_addmeta
-  - override /callbacks: default
+  - override /data: omnipred
+  - override /model: omnipred
+  - override /callbacks: toy
   - override /trainer: default
   - override /logger: wandb
   - override /task: design_bench
@@ -14,29 +14,26 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["universal", "embed_regress", "multi_task"]
+tags: ["universal", "omnipred", "test"]
 
 seed: 42
 
 data:
   task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  # task_names: Superconductor-RandomForest-v0
   batch_size: 128
-  tokenizer_max_length: 324
 
 trainer:
   min_epochs: 2
-  max_epochs: 200
-
-model:
-  metadata_embedder: 
-    _target_: transformers.T5EncoderModel.from_pretrained
-    pretrained_model_name_or_path: google-t5/t5-small
+  max_epochs: 2
   
+model:
+  numeric_interval: 200
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: embed_regress_t5_catmeta
+task_name: toy_omnipred
 
 logger:
   wandb:

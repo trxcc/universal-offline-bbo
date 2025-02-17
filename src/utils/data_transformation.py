@@ -11,7 +11,6 @@ def omnipred_fitness_function_string(
     x: np.ndarray,
     m: str,
     model: OmnipredModule,
-    task_name: str,
 ) -> np.ndarray:
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
     assert len(x.shape) == 1 or len(x.shape) == 2
@@ -23,12 +22,12 @@ def omnipred_fitness_function_string(
 
     def sol2str(single_solution):
         res_str = ", ".join(
-            f"x{i}: {val.item():.4f}" if not task_name.startswith('TFBind') else f"x{i}: '{int(val.item())}'" for i, val in enumerate(single_solution)
+            f"x{i}: {val.item()}" for i, val in enumerate(single_solution)
         )
         return res_str
 
     x_str = [sol2str(x0) for x0 in x]
-    input_str = [f"{m0}. {x0}" for x0, m0 in zip(x_str, ms)]
+    input_str = [f"{x0}. {m0}" for x0, m0 in zip(x_str, ms)]
     input_tokens = model.input_tokenizer(
         input_str, padding="max_length", truncation=True, return_tensors="pt"
     )
@@ -43,8 +42,7 @@ def omnipred_fitness_function_string(
 
 @torch.no_grad()
 def model_fitness_function_string(
-    x: np.ndarray, m: str, model: LightningModule, datamodule: LightningDataModule,
-    task_name: str,
+    x: np.ndarray, m: str, model: LightningModule, datamodule: LightningDataModule
 ) -> np.ndarray:
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
     assert len(x.shape) == 1 or len(x.shape) == 2
@@ -56,13 +54,13 @@ def model_fitness_function_string(
 
     def sol2str(single_solution):
         res_str = ", ".join(
-            f"x{i}: {val.item():.4f}" if not task_name.startswith('TFBind') else f"x{i}: '{int(val.item())}'" for i, val in enumerate(single_solution)
+            f"x{i}: {val.item()}" for i, val in enumerate(single_solution)
         )
         return res_str
 
     x_str = [sol2str(x0) for x0 in x]
     if datamodule.hparams.cat_metadata:
-        x_str = [f"{m0}. {x0}" for x0, m0 in zip(x_str, ms)]
+        x_str = [f"{x0}. {m0}" for x0, m0 in zip(x_str, ms)]
     x_tokens = datamodule.hparams.tokenizer(
         x_str,
         padding="max_length",

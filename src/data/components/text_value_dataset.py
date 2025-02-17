@@ -13,9 +13,7 @@ class TextValueDataset(Dataset):
         values: List[float],
         tokenizer: Any,
         tokenizer_max_length: int = 128,
-        meta_tok_max_len: int = 64,
         concat_metadata: bool = True,
-        cat_front: bool = True,
         metadatas: Optional[List[str]] = None,
         task_names: Optional[List[str]] = None,
     ) -> None:
@@ -27,14 +25,10 @@ class TextValueDataset(Dataset):
         self.tokenizer_max_length = tokenizer_max_length
         self.metadatas = metadatas
         self.task_names = task_names
-        self.meta_max_len = meta_tok_max_len
 
         self.concat_metadata = concat_metadata
         if concat_metadata:
-            if cat_front:
-                self.texts = [f"{m}. {x}" for x, m in zip(self.texts, self.metadatas)]
-            else:
-                self.texts = [f"{x}. {m}" for x, m in zip(self.texts, self.metadatas)]
+            self.texts = [f"{x}. {m}" for x, m in zip(self.texts, self.metadatas)]
 
     def __len__(self):
         return len(self.texts)
@@ -57,7 +51,7 @@ class TextValueDataset(Dataset):
         metadata_tokens = self.tokenizer(
             metadata,
             padding="max_length",
-            max_length=self.meta_max_len,
+            max_length=self.tokenizer_max_length,
             truncation=True,
             return_tensors="pt",
         )

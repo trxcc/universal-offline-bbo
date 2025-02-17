@@ -78,15 +78,15 @@ class EmbedRegressorModule(LightningModule):
         with context:
             encoded_input = m.to(self.device)
             emb_m = self.metadata_embedder(**encoded_input)
-            # emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
-        return emb_m[0]
+            emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
+        return emb_m
 
     def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding]) -> torch.Tensor:
         context = torch.no_grad() if not self.finetune_embedder else nullcontext()
         m_emb = self._emb_metadata(m)
         with context:
             encoded_input = x.to(self.device)
-            m_emb = m_emb
+            m_emb = m_emb.to(self.device)
             x_emb = self.embedder(**encoded_input, emb_meta=m_emb)
             x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
 

@@ -23,22 +23,22 @@ from src.tasks.mcts_transfer_task.utils import load_mcts_transfer_data
 data_dir = root / "data"
 os.makedirs(data_dir, exist_ok=True)
 
-# Generate Design-Bench data
-for task_name in TASKNAMES_DB:
-    print(task_name)
-    task, metadata, data = create_task_db(task_name)
+# # Generate Design-Bench data
+# for task_name in TASKNAMES_DB:
+#     print(task_name)
+#     task, metadata, data = create_task_db(task_name)
 
-    task_data = []
-    for x, y in zip(data.to_string(), task.y_np):
-        task_data.append({"x": x, "y": round(y.item(), 4)})
+#     task_data = []
+#     for x, y in zip(data.to_string(), task.y_np):
+#         task_data.append({"x": x, "y": round(y.item(), 4)})
 
-    output_file = f"{data_dir}/{task_name}.json"
-    with open(output_file, "w") as f:
-        json.dump(task_data, f, indent=2)
+#     output_file = f"{data_dir}/{task_name}.json"
+#     with open(output_file, "w") as f:
+#         json.dump(task_data, f, indent=2)
 
-    metadata_file = f"{data_dir}/{task_name}.metadata"
-    with open(metadata_file, "w") as f:
-        f.write(metadata.to_string())
+#     metadata_file = f"{data_dir}/{task_name}.metadata"
+#     with open(metadata_file, "w") as f:
+#         f.write(metadata.to_string())
 
 # Generate SOO-Bench data
 for benchmark_id in [2, 3, 4, 6]:

@@ -120,7 +120,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         if ckpt_path is not None:
             log.info(f"loading checkpoint from {ckpt_path}")
-            checkpoint = torch.load(ckpt_path, map_location='cpu')
+            checkpoint = torch.load(ckpt_path)
             try:
                 model.load_state_dict(checkpoint["state_dict"])
             except:
@@ -129,19 +129,13 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     new_key = k.replace("_orig_mod.", "")
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
-            
-        # torch.save(obj=model.state_dict(),f="./logs/omni_latent_wometa.pt")
-        # exit()
-        # from src.utils.zero_shot_eval import zero_shot_eval
-        # zero_shot_eval(model, cfg.get('seed'))
-        # exit()
+
         # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
         # tasks = get_tasks(task_names, root_dir=root_dir)
         task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
-        csv_dir = root_dir / "new_csv_results"
-        os.makedirs(csv_dir, exist_ok=True)
+        csv_dir = root_dir / "csv_results"
         for task_name, task_instance in zip(task_names, tasks):
             if check_if_evaluated(
                 results_dir=csv_dir,
@@ -158,7 +152,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 cfg.searcher,
                 task=task_instance,
                 score_fn=lambda x: omnipred_fitness_function_string(
-                    x, m=m, model=model, task_name=task_name
+                    x, m=m, model=model
                 ),
                 EVAL_STABILITY=task.eval_stability,
             )
@@ -178,7 +172,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             score_dict.update(res_dict)
 
             log.info("Final score statistics:")
-            csv_dir = root_dir / "new_csv_results"
+            csv_dir = root_dir / "csv_results"
             for score_desc, score in res_dict.items():
                 log.info(f"{score_desc}: {score}")
                 print(score_desc)

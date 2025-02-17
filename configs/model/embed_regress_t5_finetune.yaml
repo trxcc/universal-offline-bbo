@@ -1,0 +1,36 @@
+_target_: src.models.embed_regressor_module.EmbedRegressorModule
+
+  
+embedder: 
+  _target_: transformers.T5EncoderModel.from_pretrained
+  pretrained_model_name_or_path: google-t5/t5-small
+embedder_output_dim: 512
+
+regressor:
+  _target_: src.models.components.mlp.SimpleMLP
+  input_dim: 512
+  hidden_dim: [2048, 2048]
+  output_dim: 1
+
+regressor_optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.0003
+  weight_decay: 0.00001
+
+scheduler: 
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  _partial_: true
+  eta_min: 0
+  T_max: ${trainer.max_epochs}
+
+compile: true
+
+embedder_optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true 
+  lr: 0.00002
+  weight_decay: 0.00001
+
+data_dir: ${data.data_dir}
+task_names: ${data.task_names}

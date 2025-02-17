@@ -33,7 +33,7 @@ model:
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: baseline_omnipred_24m
+task_name: omnipred_24m
 
 logger:
   wandb:

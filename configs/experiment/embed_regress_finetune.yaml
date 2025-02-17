@@ -4,8 +4,8 @@
 # python train.py experiment=example
 
 defaults:
-  - override /data: embed_regress_t5
-  - override /model: embed_regress_t5_addmeta
+  - override /data: string_xy
+  - override /model: embed_regress_t5_finetune
   - override /callbacks: default
   - override /trainer: default
   - override /logger: wandb
@@ -19,8 +19,14 @@ tags: ["universal", "embed_regress", "multi_task"]
 seed: 42
 
 data:
-  task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0
+  task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0,gtopx_data_2_1,gtopx_data_3_1,gtopx_data_4_1,gtopx_data_6_1
   batch_size: 128
+  cat_metadata: true
+
+  tokenizer:
+    _target_: transformers.T5Tokenizer.from_pretrained
+    pretrained_model_name_or_path: google-t5/t5-small
+
   tokenizer_max_length: 324
 
 trainer:
@@ -28,15 +34,13 @@ trainer:
   max_epochs: 200
 
 model:
-  metadata_embedder: 
-    _target_: transformers.T5EncoderModel.from_pretrained
-    pretrained_model_name_or_path: google-t5/t5-small
-  
+  from_pretrained: true
+  finetune_embedder: true 
 
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: embed_regress_t5_catmeta
+task_name: embed_regress_t5_m_cat_finetune
 
 logger:
   wandb:

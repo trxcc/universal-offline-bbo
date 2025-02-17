@@ -69,8 +69,6 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
-    if cfg.get('pt_path'):
-        model.embedder.load_state_dict(torch.load(cfg.pt_path, weights_only=True))
 
     log.info(f"Instantiating task <{cfg.task._target_}>")
     task: OfflineBBOTask = hydra.utils.instantiate(cfg.task)
@@ -122,36 +120,28 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             checkpoint = torch.load(ckpt_path)
             try:
                 model.load_state_dict(checkpoint["state_dict"])
-                # model.load_state_dict(checkpoint)
             except:
                 new_state_dict = {}
                 for k, v in checkpoint["state_dict"].items():
-                # for k, v in checkpoint.items():
                     new_key = k.replace("_orig_mod.", "")
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
-
-            # torch.save(model.embedder.state_dict(), 'finetune_t5_epoch11.pt')
-            # logs/finetune_t5/runs/2025-01-27_16-49-22_seed42/checkpoints/last.ckpt
-            # \'logs/finetune_t5/runs/2025-01-27_16-49-22_seed42/checkpoints/epoch_epoch=014.ckpt\'
-            # exit()
 
         # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
         # tasks = get_tasks(task_names, root_dir=root_dir)
         task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
-        csv_dir = root_dir / "new_csv_results"
-        os.makedirs(csv_dir, exist_ok=True)
+        csv_dir = root_dir / "csv_results"
         for task_name, task_instance in zip(task_names, tasks):
-            # if check_if_evaluated(
-            #     results_dir=csv_dir,
-            #     task_name=task_name,
-            #     model_name=cfg.task_name,
-            #     seed=cfg.get("seed"),
-            #     metric_name="score-100th",
-            # ):
-            #     continue
+            if check_if_evaluated(
+                results_dir=csv_dir,
+                task_name=task_name,
+                model_name=cfg.task_name,
+                seed=cfg.get("seed"),
+                metric_name="score-100th",
+            ):
+                continue
 
             log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
             with open(f"./data/{task_name}.metadata", "r") as f:
@@ -160,7 +150,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 cfg.searcher,
                 task=task_instance,
                 score_fn=lambda x: model_fitness_function_string(
-                    x, m=m, model=model, datamodule=datamodule, task_name=task_name
+                    x, m=m, model=model, datamodule=datamodule
                 ),
                 EVAL_STABILITY=task.eval_stability,
             )
@@ -180,8 +170,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             score_dict.update(res_dict)
 
             log.info("Final score statistics:")
-            csv_dir = root_dir / "new_csv_results"
-            os.makedirs(csv_dir, exist_ok=True)
+            csv_dir = root_dir / "csv_results"
             for score_desc, score in res_dict.items():
                 log.info(f"{score_desc}: {score}")
                 print(score_desc)

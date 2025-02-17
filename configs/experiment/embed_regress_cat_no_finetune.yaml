@@ -19,15 +19,15 @@ tags: ["universal", "embed_regress", "multi_task"]
 seed: 42
 
 data:
-  task_names: ALL
+  task_names: AntMorphology-Exact-v0,DKittyMorphology-Exact-v0,Superconductor-RandomForest-v0,TFBind8-Exact-v0,TFBind10-Exact-v0,gtopx_data_2_1,gtopx_data_3_1,gtopx_data_4_1,gtopx_data_6_1
   batch_size: 128
   cat_metadata: true
 
   tokenizer:
     _target_: transformers.T5TokenizerFast.from_pretrained
-    pretrained_model_name_or_path: google-t5/t5-large
+    pretrained_model_name_or_path: google-t5/t5-small
 
-  tokenizer_max_length: 512
+  tokenizer_max_length: 324
 
 trainer:
   min_epochs: 2
@@ -39,7 +39,7 @@ model:
 task:
   task_name: Superconductor-RandomForest-v0
 
-task_name: baseline_embed_regress_multitask_m_cat_no_finetune
+task_name: embed_regress_cat_small
 
 logger:
   wandb:

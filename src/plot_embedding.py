@@ -27,7 +27,7 @@ config = T5Config(
     decoder_start_token_id=None,
     use_cache=False
 )
-ckpt_path = "/root/autodl-tmp/universal-offline-bbo/logs/baseline_embed_regress_t5_m_cat_from_scratch_latent_balance_fix1/runs/2025-01-20_19-27-28_seed42/checkpoints/epoch_epoch=199.ckpt"
+ckpt_path = "/root/autodl-tmp/universal-offline-bbo/logs/baseline_embed_regress_t5_m_cat_from_scratch_latent/runs/2025-01-20_12-22-13_seed42/checkpoints/epoch_epoch=149.ckpt"
 embedder = T5EncoderModel(config)
 checkpoint = torch.load(ckpt_path, map_location=torch.device('cuda'))  # 如果用GPU可以改为'cuda'
 model_state_dict = checkpoint['state_dict']

@@ -11,7 +11,7 @@ DESIGN_BENCH_TASKS = [
     "TFBind8-Exact-v0",
     "TFBind10-Exact-v0",
     # # Below are tasks that are not usually used in Design-Bench
-    "HopperController-Exact-v0",
+    # "HopperController-Exact-v0",
 ]
 
 SOO_BENCH_TASKS = [

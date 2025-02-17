@@ -3,8 +3,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-import time
-
 import hydra
 import lightning as L
 import rootutils
@@ -41,7 +39,7 @@ from src.utils import (
     instantiate_callbacks,
     instantiate_loggers,
     log_hyperparameters,
-    model_fitness_function_string,
+    omnipred_fitness_function_string,
     task_wrapper,
 )
 from src.utils.io_utils import load_task_names, save_metric_to_csv, check_if_evaluated
@@ -66,11 +64,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
-
+    datamodule.setup()
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
-    if cfg.get('pt_path'):
-        model.embedder.load_state_dict(torch.load(cfg.pt_path, weights_only=True))
 
     log.info(f"Instantiating task <{cfg.task._target_}>")
     task: OfflineBBOTask = hydra.utils.instantiate(cfg.task)
@@ -83,7 +79,10 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer, callbacks=callbacks, logger=logger
+        cfg.trainer,
+        callbacks=callbacks,
+        logger=logger,
+        # resume_from_checkpoint=cfg.get("resume_path")
     )
 
     object_dict = {
@@ -104,6 +103,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 
+    # exit()
+
     train_metrics = trainer.callback_metrics
 
     if cfg.get("test"):
@@ -122,45 +123,38 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             checkpoint = torch.load(ckpt_path)
             try:
                 model.load_state_dict(checkpoint["state_dict"])
-                # model.load_state_dict(checkpoint)
             except:
                 new_state_dict = {}
                 for k, v in checkpoint["state_dict"].items():
-                # for k, v in checkpoint.items():
                     new_key = k.replace("_orig_mod.", "")
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
+        # torch.save(obj=model.state_dict(),f="./logs/omni_nocat.pt")
+        # exit()
 
-            # torch.save(model.embedder.state_dict(), 'finetune_t5_epoch11.pt')
-            # logs/finetune_t5/runs/2025-01-27_16-49-22_seed42/checkpoints/last.ckpt
-            # \'logs/finetune_t5/runs/2025-01-27_16-49-22_seed42/checkpoints/epoch_epoch=014.ckpt\'
-            # exit()
-
-        # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
-        # tasks = get_tasks(task_names, root_dir=root_dir)
-        task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
+        task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
+        tasks = get_tasks(task_names, root_dir=root_dir)
+        # task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
-        csv_dir = root_dir / "new_csv_results"
-        os.makedirs(csv_dir, exist_ok=True)
+        csv_dir = root_dir / "csv_results"
         for task_name, task_instance in zip(task_names, tasks):
-            # if check_if_evaluated(
-            #     results_dir=csv_dir,
-            #     task_name=task_name,
-            #     model_name=cfg.task_name,
-            #     seed=cfg.get("seed"),
-            #     metric_name="score-100th",
-            # ):
-            #     continue
-
+            if check_if_evaluated(
+                results_dir=csv_dir,
+                task_name=task_name,
+                model_name=cfg.task_name,
+                seed=cfg.get("seed"),
+                metric_name="score-100th",
+            ):
+                continue
             log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
             with open(f"./data/{task_name}.metadata", "r") as f:
                 m = f.read()
             searcher: BaseSearcher = hydra.utils.instantiate(
                 cfg.searcher,
                 task=task_instance,
-                score_fn=lambda x: model_fitness_function_string(
-                    x, m=m, model=model, datamodule=datamodule, task_name=task_name
+                score_fn=lambda x: omnipred_fitness_function_string(
+                    x, m=m, model=model
                 ),
                 EVAL_STABILITY=task.eval_stability,
             )
@@ -180,8 +174,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             score_dict.update(res_dict)
 
             log.info("Final score statistics:")
-            csv_dir = root_dir / "new_csv_results"
-            os.makedirs(csv_dir, exist_ok=True)
+            csv_dir = root_dir / "toy_csv_results"
             for score_desc, score in res_dict.items():
                 log.info(f"{score_desc}: {score}")
                 print(score_desc)
@@ -234,13 +227,13 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
-# universal-offline-bbo/logs/embed_regress_Superconductor-RandomForest-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_AntMorphology-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_DKittyMorphology-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_TFBind8-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# universal-offline-bbo/logs/embed_regress_TFBind10-Exact-v0/runs/2024-12-28_22-50-55_seed12345/checkpoints/last.ckpt
-# logs/embed_regress_multitask_m_emb_from_scratch/runs/2025-01-10_00-05-41_seed42/checkpoints/last.ckpt
-# logs/embed_regress_multitask_m_cat_from_scratch/runs/2025-01-10_00-04-59_seed42/checkpoints/last.ckpt
-# logs/baseline_embed_regress_proj_t5/runs/2025-01-13_17-45-47_seed42/checkpoints/last.ckpt
-# logs/baseline_embed_regress_t5_m_cat_from_scratch/runs/2025-01-13_14-27-10_seed42/checkpoints/last.ckpt
-# logs/baseline_embed_regress_t5_m_cat_from_scratch/runs/2025-01-13_23-46-04_seed42/checkpoints/last.ckpt
+
+# universal-offline-bbo/logs/omnipred_test/runs/2025-01-03_20-06-41_seed42/Universal/ednc6tch/checkpoints/epoch=199-step=21400.ckpt
+# logs/omnipred_test/runs/2025-01-03_22-07-17_seed42/Universal/rn1x1r91/checkpoints/test.ckpt
+# logs/omnipred_test/runs/2025-01-04_22-59-00_seed42/Universal/ur6l0g7m/checkpoints/test.ckpt
+# logs/omnipred_test/runs/2025-01-05_17-11-07_seed42/Universal/2064go0t/checkpoints/test.ckpt
+# logs/omnipred_24m/runs/2025-01-10_01-29-12_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_17-27-20_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_22-48-34_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_23-39-10_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-14_01-42-14_seed42/checkpoints/last.ckpt

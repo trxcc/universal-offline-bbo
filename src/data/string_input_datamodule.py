@@ -20,6 +20,7 @@ class StringXYDataModule(LightningDataModule):
         tokenizer: Any,
         tokenizer_max_length: int = 128,
         cat_metadata: bool = True,
+        cat_front: bool = True,
         data_dir: str = "data/",
         val_ratio: float = 0.2,
         batch_size: int = 128,
@@ -94,6 +95,7 @@ class StringXYDataModule(LightningDataModule):
                 tokenizer=self.tokenizer,
                 tokenizer_max_length=self.tokenizer_max_length,
                 concat_metadata=self.hparams.cat_metadata,
+                cat_front=self.hparams.cat_front,
                 metadatas=metadatas,
                 task_names=task_names_list,
             )
@@ -201,6 +203,7 @@ class NonShuffledStringXYDataModule(StringXYDataModule):
                 tokenizer=self.tokenizer,
                 tokenizer_max_length=self.tokenizer_max_length,
                 concat_metadata=self.hparams.cat_metadata,
+                cat_front=self.hparams.cat_front,
                 metadatas=metadatas,
                 task_names=task_names_list,
             )

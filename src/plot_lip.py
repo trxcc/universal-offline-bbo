@@ -29,8 +29,11 @@ config = T5Config(
     decoder_start_token_id=None,
     use_cache=False
 )
-ckpt_path = "/root/autodl-tmp/universal-offline-bbo/logs/baseline_embed_regress_t5_m_cat_from_scratch_latent/runs/2025-01-20_12-22-13_seed42/checkpoints/epoch_epoch=149.ckpt"
+ckpt_path = "/root/autodl-tmp/universal-offline-bbo/logs/latent_last.ckpt"
 embedder = T5EncoderModel(config)
+small_embedder = T5EncoderModel.from_pretrained("google-t5/t5-small")
+# large_embedder = T5EncoderModel.from_pretrained("google-t5/t5-large")
+
 checkpoint = torch.load(ckpt_path, map_location=torch.device('cuda'))  # 如果用GPU可以改为'cuda'
 model_state_dict = checkpoint['state_dict']
 
@@ -74,6 +77,8 @@ new_state_dict = on_load_checkpoint(checkpoint)
 embedder.load_state_dict(new_state_dict["state_dict"])
 embedder.to('cuda')  # 明确移到cuda
 embedder.eval()  # 设置为评估模式
+small_embedder.to('cuda')
+small_embedder.eval()
 
 data_dir = "data/"
 val_ratio = 0.2
@@ -81,12 +86,15 @@ tokenizer = T5Tokenizer.from_pretrained(pretrained_model_name_or_path='google-t5
 tokenizer_max_length = 256
 
 DESIGN_BENCH_TASKS = [
-    "AntMorphology-Exact-v0",
-    "DKittyMorphology-Exact-v0",
-    "Superconductor-RandomForest-v0",
+    # "AntMorphology-Exact-v0",
+    # "DKittyMorphology-Exact-v0",
+    # "Superconductor-RandomForest-v0",
     # "TFBind8-Exact-v0",
     # "TFBind10-Exact-v0",
     # "HopperController-Exact-v0",
+    "gtopx_data_2_1",
+    "gtopx_data_3_1",
+    "gtopx_data_4_1",
 ]
 task_names = load_task_names(DESIGN_BENCH_TASKS,data_dir)
 x_values = []
@@ -129,9 +137,9 @@ def plot_lipschitz_histogram(task_lipschitz_factors, task_name, bins=20):
     
     # 绘制两个直方图，使用alpha来设置透明度，使两个直方图都可见
     plt.hist(emb_factors, bins=bins, range=(min_val, max_val), 
-             alpha=0.7, label='T5-XXL Embedding', color='blue')
+             alpha=0.7, label='Our Embedding', color='blue')
     plt.hist(x_factors, bins=bins, range=(min_val, max_val), 
-             alpha=0.7, label='Raw Input', histtype='step', color='orange',linewidth=4)
+             alpha=0.7, label='T5-small', histtype='step', color='orange',linewidth=4)
     
     # 设置标题和标签
     plt.title(f'{task_name}')
@@ -195,7 +203,7 @@ for task_name in DESIGN_BENCH_TASKS:
     task_samples = Subset(train_dataset, task_indices)
     dataloader = DataLoader(task_samples, batch_size=128)
     task_embeddings = []
-    task_x_values = []
+    task_s_embeddings = []
     task_y_values = []
 
     with torch.no_grad():
@@ -205,18 +213,21 @@ for task_name in DESIGN_BENCH_TASKS:
             x_emb = embedder(**encoded_input)
             x_emb = mean_pooling(x_emb, encoded_input["attention_mask"].to('cuda'))
             embeddings = x_emb.cpu().numpy()
+            s_emb = small_embedder(**encoded_input)
+            s_emb = mean_pooling(s_emb, encoded_input["attention_mask"].to('cuda'))
+            s_embeddings = s_emb.cpu().numpy()
             task_embeddings.append(embeddings)
-            task_x_values.extend(batch["x_value"])
+            task_s_embeddings.append(s_embeddings)
             task_y_values.extend(batch["value"])
 
     
     task_embeddings = np.vstack(task_embeddings)
-    task_x_values = np.vstack(task_x_values)
+    task_s_embeddings = np.vstack(task_s_embeddings)
     task_y_values = np.array(task_y_values)
 
     scaler = StandardScaler()
     normalized_embeddings = scaler.fit_transform(task_embeddings)
-    normalized_x_value = scaler.fit_transform(task_x_values)
+    normalized_x_value = scaler.fit_transform(task_s_embeddings)
 
     embedding_lipschitz_factors = []
     x_lipschitz_factors = []

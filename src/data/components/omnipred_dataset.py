@@ -1,7 +1,9 @@
 from typing import Any, List, Optional
 
+import torch 
 from torch.utils.data import Dataset
 
+from src.data.data_utils import normalize_ys_from_different_tasks
 
 class OmnipredDataset(Dataset):
     def __init__(
@@ -11,12 +13,14 @@ class OmnipredDataset(Dataset):
         input_tokenizer: Any,
         output_tokenizer: Any,
         concat_metadata: bool = True,
+        cat_front: bool = True,
         metadatas: Optional[List[str]] = None,
         task_names_list: Optional[List[str]] = None,
         max_length: int = 128,
     ) -> None:
         self.x_data = x_data
         self.y_data = y_data
+        self.values = normalize_ys_from_different_tasks(y_data, task_names_list)
         self.input_tokenizer = input_tokenizer
         self.output_tokenizer = output_tokenizer
         self.max_length = max_length
@@ -24,11 +28,15 @@ class OmnipredDataset(Dataset):
         self.metadatas = metadatas
         self.task_names_list = task_names_list
         if concat_metadata:
-            self.x_data = [f"{x}. {m}" for x, m in zip(self.x_data, self.metadatas)]
+            if cat_front:
+                self.x_data = [f"{m}. {x}" for x, m in zip(self.x_data, self.metadatas)]
+            else:
+                self.x_data = [f"{x}. {m}" for x, m in zip(self.x_data, self.metadatas)]
         else:
-            raise NotImplementedError(
-                f"not implemented for non-concatened case in omnipred"
-            )
+            # raise NotImplementedError(
+            #     f"not implemented for non-concatened case in omnipred"
+            # )
+            pass
 
     def __len__(self):
         return len(self.x_data)
@@ -36,6 +44,7 @@ class OmnipredDataset(Dataset):
     def __getitem__(self, idx: int):
         x = str(self.x_data[idx])
         y = str(self.y_data[idx])
+        value = self.values[idx]
 
         # Encode input sequence
         x_tokens = self.input_tokenizer(
@@ -54,6 +63,17 @@ class OmnipredDataset(Dataset):
             truncation=True,
             return_tensors="pt",
         )
+
+        metadata = self.metadatas[idx]
+        metadata_tokens = self.input_tokenizer(
+            metadata,
+            padding="max_length",
+            max_length=64,
+            truncation=True,
+            return_tensors="pt",
+        )
+        for k, v in metadata_tokens.items():
+            metadata_tokens[k] = v.squeeze()
 
         # Create decoder_input_ids
         decoder_input_ids = y_tokens["input_ids"].clone()
@@ -74,6 +94,8 @@ class OmnipredDataset(Dataset):
             "decoder_attention_mask": y_tokens["attention_mask"].squeeze(),
             "labels": labels,
             "task_name": self.task_names_list[idx],
+            "metadata": metadata_tokens,
+            "value": value.squeeze(),
         }
 
     def _shift_right(self, input_ids, pad_token_id, decoder_start_token_id):

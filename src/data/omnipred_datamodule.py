@@ -21,6 +21,7 @@ class OmnipredDataModule(LightningDataModule):
         output_tokenizer: Any,
         max_length: int = 128,
         concat_metadata: bool = True,
+        cat_front: bool = True,
         data_dir: str = "data/",
         val_ratio: float = 0.2,
         batch_size: int = 128,
@@ -102,6 +103,7 @@ class OmnipredDataModule(LightningDataModule):
                 input_tokenizer=self.hparams.input_tokenizer,
                 output_tokenizer=self.hparams.output_tokenizer,
                 concat_metadata=self.hparams.concat_metadata,
+                cat_front=self.hparams.cat_front,
                 metadatas=metadatas,
                 task_names_list=task_names_list,
                 max_length=self.hparams.max_length,
@@ -161,4 +163,113 @@ class OmnipredDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
+        )
+    
+class NonShuffledOmnipredDataModule(OmnipredDataModule):
+    def setup(self, stage: Optional[str] = None) -> None:
+        # Divide batch size by the number of devices.
+        if self.trainer is not None:
+            if self.hparams.batch_size % self.trainer.world_size != 0:
+                raise RuntimeError(
+                    f"Batch size ({self.hparams.batch_size}) is not divisible by the number of devices ({self.trainer.world_size})."
+                )
+            self.batch_size_per_device = (
+                self.hparams.batch_size // self.trainer.world_size
+            )
+            # if self.trainer.accelerator:
+            #     self.device = self.trainer.accelerator.device
+
+        if not self.data_train or not self.data_val:
+            # TODO: Load data as a single function
+            task_names = load_task_names(self.hparams.task_names, self.hparams.data_dir)
+
+            x_values = []
+            y_values = []
+            metadatas = []
+            task_names_list = []
+            for task_name in task_names:
+                data_file = f"{self.hparams.data_dir}/{task_name}.json"
+                assert os.path.exists(data_file)
+                with open(data_file, "r") as f:
+                    data = json.load(f)
+
+                ys = [d["y"] for d in data]
+                xs = [", ".join(d["x"]) for d in data]
+                y_values.extend(ys)
+                x_values.extend(xs)
+                assert len(xs) == len(ys)
+
+                metadata_file = f"{self.hparams.data_dir}/{task_name}.metadata"
+                with open(metadata_file, "r") as f:
+                    metadata = f.read()
+                    metadatas.extend([metadata for _ in range(len(xs))])
+                task_names_list.extend([task_name for _ in range(len(xs))])
+
+            dataset = OmnipredDataset(
+                x_data=x_values,
+                y_data=y_values,
+                input_tokenizer=self.hparams.input_tokenizer,
+                output_tokenizer=self.hparams.output_tokenizer,
+                concat_metadata=self.hparams.concat_metadata,
+                cat_front=self.hparams.cat_front,
+                metadatas=metadatas,
+                task_names_list=task_names_list,
+                max_length=self.hparams.max_length,
+            )
+            # Calculate split point
+            train_size = len(dataset) - int(len(dataset) * self.hparams.val_ratio)
+
+            # Create sequential splits using Subset
+            from torch.utils.data import Subset
+
+            self.data_train = Subset(dataset, range(train_size))
+            self.data_val = Subset(dataset, range(train_size, len(dataset)))
+
+    def train_dataloader(self) -> DataLoader[Any]:
+        sampler = None
+        if self.trainer and self.trainer.world_size > 1:
+            sampler = DistributedSampler(
+                self.data_train,
+                num_replicas=self.trainer.world_size,
+                rank=self.trainer.global_rank,
+                shuffle=False,
+            )
+
+        return DataLoader(
+            dataset=self.data_train,
+            batch_size=self.batch_size_per_device,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+            shuffle=False,
+            persistent_workers=self.hparams.persistent_workers,
+            sampler=sampler,
+        )
+
+    def val_dataloader(self) -> DataLoader[Any]:
+        sampler = None
+        if self.trainer and self.trainer.world_size > 1:
+            sampler = DistributedSampler(
+                self.data_val,
+                num_replicas=self.trainer.world_size,
+                rank=self.trainer.global_rank,
+                shuffle=False,
+            )
+
+        return DataLoader(
+            dataset=self.data_val,
+            batch_size=self.batch_size_per_device,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+            shuffle=False,
+            persistent_workers=self.hparams.persistent_workers,
+            sampler=sampler,
+        )
+
+    def test_dataloader(self) -> DataLoader[Any]:
+        return DataLoader(
+            dataset=self.data_test,
+            batch_size=self.batch_size_per_device,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+            shuffle=False,
         )

@@ -64,6 +64,18 @@ pip install -U sentencepiece
 
 # Install other utils packages
 pip install rootutils pre-commit rich pytest isort black
+
+# Install SOO-bench
+cd thirdparty_benchmark/soo-bench/
+pip install -e ./revive_hybrid/
+pip install -e .
+cd ../../
+
+# Install dependencies for HPO-B
+pip install xgboost==2.1.3
+
+# Install dependencies for BBOPlace-Bench
+pip install igraph==0.11.8
 ```
 
 then download data of Design-Bench following [this link](https://github.com/brandontrabucco/design-bench/issues/11#issuecomment-2067352331).

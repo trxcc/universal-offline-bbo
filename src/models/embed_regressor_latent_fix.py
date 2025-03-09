@@ -39,7 +39,7 @@ class EmbedRegressorLatentModule(LightningModule):
         finetune_interval: int = 10,
         num_finetune_epochs: int = 3,
         temperature: float = 0.07,
-        if_use_detach_normalization: bool = True
+        if_use_detach_normalization: bool = False
     ) -> None:
         super().__init__()
 
@@ -242,9 +242,10 @@ class EmbedRegressorLatentModule(LightningModule):
         )
 
         if self.hparams.if_use_detach_normalization:
+            assert 0
             return loss, loss_lip
         else:
-            return loss * 0.1 + loss_lip
+            return loss * 0.1
 
     def _emb_metadata(self, m: Tuple[BatchEncoding]) -> torch.Tensor:
         context = (

@@ -96,7 +96,7 @@ class EmbedRegressorModule(LightningModule):
             layers.append(nn.ReLU())
             self.adapt_mlp = nn.Sequential(*layers)
 
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.NLLLoss()
 
         self.train_rank_corr = {}
         self.val_rank_corr = {}
@@ -150,8 +150,8 @@ class EmbedRegressorModule(LightningModule):
         #         print(f"标准差: {dim_stats['std']}")
         # assert 0
         x_emb = self.batch_norm(x_emb)
-        preds = self.regressor(x_emb)
-        return preds
+        mean, std = self.regressor(x_emb)
+        return mean, std
     
     def batch_statistics(self, vectors: torch.Tensor):
         mean = torch.mean(vectors, dim=0)
@@ -245,9 +245,12 @@ class EmbedRegressorModule(LightningModule):
         m = batch["metadata"]
         task_names = batch["task_names"]
 
-        preds = self.forward(x, m)
-        loss = self.criterion(preds.squeeze(), y.squeeze())
-        return loss, preds, y, task_names
+        mean, std = self.forward(x, m)
+        # loss = self.criterion(preds.squeeze(), y.squeeze())
+        dist = torch.distributions.Normal(mean.squeeze(), std.squeeze())
+        nll_loss = -dist.log_prob(y.squeeze()).mean()
+
+        return nll_loss, mean, y, task_names
 
     def training_step(
         self,
@@ -413,7 +416,7 @@ class EmbedRegressorModule(LightningModule):
                 task_names = batch["task_names"]
 
                 y = y.to(self.device)
-                preds = self.forward(x, m)
+                preds, _ = self.forward(x, m)
                 for i, task_name in enumerate(task_names):
                     task_preds[task_name].append(preds[i].squeeze())
                     task_targets[task_name].append(y[i].squeeze())

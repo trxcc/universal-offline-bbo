@@ -23,7 +23,7 @@ _task_kwargs = {
     "AntMorphology-Exact-v0": {"relabel": True},
     "TFBind10-Exact-v0": {
         "dataset_kwargs": {
-            "max_samples": 10000,
+            "max_samples": 30000,
         }
     },
 }

@@ -3,8 +3,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-import time
-
 import hydra
 import lightning as L
 import rootutils
@@ -41,7 +39,7 @@ from src.utils import (
     instantiate_callbacks,
     instantiate_loggers,
     log_hyperparameters,
-    model_fitness_function_string,
+    omnipred_fitness_function_string,
     task_wrapper,
 )
 from src.utils.io_utils import load_task_names, save_metric_to_csv, check_if_evaluated
@@ -66,11 +64,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
-
+    datamodule.setup()
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model)
-    if cfg.get('pt_path'):
-        model.embedder.load_state_dict(torch.load(cfg.pt_path, weights_only=True))
 
     log.info(f"Instantiating task <{cfg.task._target_}>")
     task: OfflineBBOTask = hydra.utils.instantiate(cfg.task)
@@ -83,7 +79,10 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer, callbacks=callbacks, logger=logger
+        cfg.trainer,
+        callbacks=callbacks,
+        logger=logger,
+        # resume_from_checkpoint=cfg.get("resume_path")
     )
 
     object_dict = {
@@ -104,6 +103,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 
+    # exit()
+
     train_metrics = trainer.callback_metrics
 
     if cfg.get("test"):
@@ -119,22 +120,23 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         if ckpt_path is not None:
             log.info(f"loading checkpoint from {ckpt_path}")
-            checkpoint = torch.load(ckpt_path)
+            checkpoint = torch.load(ckpt_path, weights_only=True)
             try:
-                model.load_state_dict(checkpoint["state_dict"])
-                # model.load_state_dict(checkpoint)
+                model.load_state_dict(checkpoint)
             except:
                 new_state_dict = {}
-                for k, v in checkpoint["state_dict"].items():
-                # for k, v in checkpoint.items():
+                for k, v in checkpoint.items():
                     new_key = k.replace("_orig_mod.", "")
                     new_state_dict[new_key] = v
                 model.load_state_dict(new_state_dict)
-            # exit()
-
-        task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
-        tasks = get_tasks(task_names, root_dir=root_dir)
-        # task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
+        # torch.save(obj=model.state_dict(),f="./logs/omni_nocat.pt")
+        # exit()
+        from src.utils.few_shot_eval import few_shot_eval
+        few_shot_eval(model, cfg.get('seed'))
+        exit()
+        # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
+        # tasks = get_tasks(task_names, root_dir=root_dir)
+        task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
         csv_dir = root_dir / "new_csv_results"
@@ -148,15 +150,14 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             #     metric_name="score-100th",
             # ):
             #     continue
-
             log.info(f"Instantiating searcher <{cfg.searcher._target_}>")
             with open(f"./data/{task_name}.metadata", "r") as f:
                 m = f.read()
             searcher: BaseSearcher = hydra.utils.instantiate(
                 cfg.searcher,
                 task=task_instance,
-                score_fn=lambda x: model_fitness_function_string(
-                    x, m=m, model=model, datamodule=datamodule, task_name=task_name
+                score_fn=lambda x: omnipred_fitness_function_string(
+                    x, m=m, model=model, task_name=task_name
                 ),
                 EVAL_STABILITY=task.eval_stability,
             )
@@ -177,7 +178,6 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
             log.info("Final score statistics:")
             csv_dir = root_dir / "new_csv_results"
-            os.makedirs(csv_dir, exist_ok=True)
             for score_desc, score in res_dict.items():
                 log.info(f"{score_desc}: {score}")
                 print(score_desc)
@@ -230,3 +230,13 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
+
+# universal-offline-bbo/logs/omnipred_test/runs/2025-01-03_20-06-41_seed42/Universal/ednc6tch/checkpoints/epoch=199-step=21400.ckpt
+# logs/omnipred_test/runs/2025-01-03_22-07-17_seed42/Universal/rn1x1r91/checkpoints/test.ckpt
+# logs/omnipred_test/runs/2025-01-04_22-59-00_seed42/Universal/ur6l0g7m/checkpoints/test.ckpt
+# logs/omnipred_test/runs/2025-01-05_17-11-07_seed42/Universal/2064go0t/checkpoints/test.ckpt
+# logs/omnipred_24m/runs/2025-01-10_01-29-12_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_17-27-20_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_22-48-34_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-13_23-39-10_seed42/checkpoints/last.ckpt
+# logs/baseline_omnipred_24m/runs/2025-01-14_01-42-14_seed42/checkpoints/last.ckpt

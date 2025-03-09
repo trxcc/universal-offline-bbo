@@ -17,8 +17,19 @@ def inverse_batch_norm(
     eps = batch_norm_layer.eps
 
     std = torch.sqrt(running_var + eps)
+    # print("fuck")
+    # print(running_var)
+    # assert not torch.isnan(running_var).any()
+    # assert not torch.isnan(normalized_x - beta).any()
+    # assert not torch.isnan(gamma).any()
+    # assert not torch.isnan((normalized_x - beta) / gamma).any()
+    # assert not torch.isnan(std).any()
+    # assert not torch.isnan(std * (normalized_x - beta) / gamma).any()
+
 
     original_x = std * (normalized_x - beta) / gamma + running_mean
+
+    # assert not torch.isnan(original_x).any()
 
     return original_x
 
@@ -27,8 +38,6 @@ class AdamSearcher(BaseSearcher):
     def __init__(
         self,
         model: LightningModule,
-        x_mean: np.ndarray,
-        x_std: np.ndarray,
         n_steps: int = 200,
         search_step_size: float = 1e-3,
         MAXIMIZE: bool = True,
@@ -39,8 +48,6 @@ class AdamSearcher(BaseSearcher):
         self.n_steps = n_steps
         self.search_step_size = search_step_size
         self.model = model
-        self.x_mean = x_mean
-        self.x_std = x_std 
         super(AdamSearcher, self).__init__(*args, **kwargs)
         if self.task.task_type == "Categorical":
             self.n_steps = 100
@@ -54,7 +61,7 @@ class AdamSearcher(BaseSearcher):
 
     def _decode_x(self, x_res: torch.Tensor) -> np.ndarray:
         x_res = inverse_batch_norm(x_res, self.model.batch_norm).detach().cpu().numpy()
-        if not isinstance(self.task, DesignBenchTask) and self.task.task_type in [
+        if (not isinstance(self.task, DesignBenchTask)) and self.task.task_type in [
             "Continuous",
             "Integer",
         ]:
@@ -84,15 +91,14 @@ class AdamSearcher(BaseSearcher):
             x_init = x_init.reshape(x_init.shape[0], -1)
         elif self.task.task_type in ["Integer", "Permutation"]:
             x_init = x_init.astype(np.float32)
-        x_init = (x_init - self.x_mean) / (self.x_std + 1e-10)
 
-        x_init = torch.from_numpy(x_init).to(self.device, dtype=torch.float32)
-        y_init = torch.from_numpy(y_init).to(self.device, dtype=torch.float32)
+        x_init = torch.from_numpy(x_init).to(self.device)
+        y_init = torch.from_numpy(y_init).to(self.device)
 
-        # try:
-        #     x_init = self.model.batch_norm(x_init)
-        # except:
-        #     x_init = self.model.batch_norm(x_init.to(dtype=torch.float32))
+        try:
+            x_init = self.model.batch_norm(x_init)
+        except:
+            x_init = self.model.batch_norm(x_init.to(dtype=torch.float32))
 
         x_res = x_init.clone()
         x_res.requires_grad = True
@@ -106,32 +112,7 @@ class AdamSearcher(BaseSearcher):
             y_pred.backward()
             x_opt.step()
             if self.EVAL_STABILITY:
-                _tmp_x = x_res.detach().cpu().numpy() * self.x_std + self.x_mean
-                if not isinstance(self.task, DesignBenchTask) and self.task.task_type in [
-                    "Continuous",
-                    "Integer",
-                ]:
-                    _tmp_x = np.clip(_tmp_x, self.xl, self.xu)
-                if self.task.task_type == "Categorical":
-                    _tmp_x = _tmp_x.reshape((-1,) + tuple(self.logits_shape))
-                    _tmp_x = self.task.task.to_integers(_tmp_x)
-                elif self.task.task_type == "Integer":
-                    _tmp_x = _tmp_x.astype(np.int64)
-                elif self.task.task_type == "Permutation":
-                    _tmp_x = _tmp_x.argsort().argsort()
-                self.X_all.append(_tmp_x)
+                self.X_all.append(self._decode_x(x_res))
 
-        x_res = x_res.detach().cpu().numpy() * self.x_std + self.x_mean
-        if not isinstance(self.task, DesignBenchTask) and self.task.task_type in [
-            "Continuous",
-            "Integer",
-        ]:
-            x_res = np.clip(x_res, self.xl, self.xu)
-        if self.task.task_type == "Categorical":
-            x_res = x_res.reshape((-1,) + tuple(self.logits_shape))
-            x_res = self.task.task.to_integers(x_res)
-        elif self.task.task_type == "Integer":
-            x_res = x_res.astype(np.int64)
-        elif self.task.task_type == "Permutation":
-            x_res = x_res.argsort().argsort()
+        x_res = self._decode_x(x_res)
         return x_res

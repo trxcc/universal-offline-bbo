@@ -60,6 +60,7 @@ class XYDataModule(LightningDataModule):
             assert len(self.x_values) == len(self.y_values)
 
             # self.y_values = self.task.task.normalize_y(self.y_values)
+
             self.y_values = (self.y_values - self.y_values.mean(axis=0)) / (
                 self.y_values.std(axis=0) + 1e-10
             )
@@ -68,6 +69,12 @@ class XYDataModule(LightningDataModule):
                 self.x_values = self.x_values.reshape(self.x_values.shape[0], -1)
             elif self.task.task_type in ["Interger", "Permutation"]:
                 self.x_values = self.x_values.astype(np.float32)
+                
+            self._x_mean = self.x_values.mean(axis=0)
+            self._x_std = self.x_values.std(axis=0)
+            self.x_values = (self.x_values - self.x_values.mean(axis=0)) / (
+                self.x_values.std(axis=0) + 1e-10
+            )
 
             self.x_values = torch.from_numpy(self.x_values).to(dtype=torch.float32)
             self.y_values = torch.from_numpy(self.y_values).to(dtype=torch.float32)
@@ -80,6 +87,14 @@ class XYDataModule(LightningDataModule):
             self.data_train, self.data_val = random_split(
                 dataset=dataset, lengths=lengths
             )
+    
+    @property
+    def x_mean(self):
+        return self._x_mean
+    
+    @property
+    def x_std(self):
+        return self._x_std 
 
     def train_dataloader(self) -> DataLoader[Any]:
         sampler = None

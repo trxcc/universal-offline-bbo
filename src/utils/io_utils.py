@@ -22,6 +22,44 @@ def load_task_names(task_names: Union[str, List[str]], data_dir: Path) -> List[s
                     continue
                 task_name = os.path.splitext(filename)[0]
                 task_names.append(task_name)
+    elif task_names == 'BBOB':
+        task_names = []
+        for filename in os.listdir(data_dir):
+            filepath = os.path.join(data_dir, filename)
+            if os.path.isfile(filepath) and filename.endswith(".json"):
+                if not filename.startswith(
+                    (
+                        "GriewankRosenbrock",
+                        "Lunacek",
+                        "Rastrigin",
+                        "RosenbrockRotated",
+                        "SharpRidge",
+                        "Sphere",
+                        "BuecheRastrigin",
+                        "LinearSlope",
+                        "AttractiveSector",
+                        "StepEllipsoidal",
+                        "Ellipsoidal",
+                        "Discus",
+                        "BentCigar",
+                        "DifferentPowers",
+                        "Weierstrass",
+                        "SchaffersF7",
+                        "SchaffersF7IllConditioned",
+                        "GriewankRosenbrock",
+                        "Schwefel",
+                        "Katsuura",
+                        "Gallagher101Me",
+                        "Gallagher21Me",
+                        "NegativeSphere",
+                        "NegativeMinDifference",
+                        "FonsecaFleming",
+                    )
+                ):
+                    continue
+                    # if not filename.startswith(("TSP", "KP")):
+                task_name = os.path.splitext(filename)[0]
+                task_names.append(task_name)
     else:
         task_names = [task_names]
     return task_names

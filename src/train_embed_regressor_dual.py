@@ -42,6 +42,7 @@ from src.utils import (
     instantiate_loggers,
     log_hyperparameters,
     model_fitness_function_string,
+    dual_model_fitness_function_string,
     task_wrapper,
 )
 from src.utils.io_utils import load_task_names, save_metric_to_csv, check_if_evaluated
@@ -132,9 +133,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 model.load_state_dict(new_state_dict)
             # exit()
 
-        task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
-        tasks = get_tasks(task_names, root_dir=root_dir)
-        # task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
+        # task_names = load_task_names(cfg.task_names, data_dir=root_dir / "data")
+        # tasks = get_tasks(task_names, root_dir=root_dir)
+        task_names, tasks = get_tasks_from_suites(cfg.test_suites, root_dir)
         score_dict = {}
 
         csv_dir = root_dir / "new_csv_results"
@@ -155,7 +156,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             searcher: BaseSearcher = hydra.utils.instantiate(
                 cfg.searcher,
                 task=task_instance,
-                score_fn=lambda x: model_fitness_function_string(
+                score_fn=lambda x: dual_model_fitness_function_string(
                     x, m=m, model=model, datamodule=datamodule, task_name=task_name
                 ),
                 EVAL_STABILITY=task.eval_stability,

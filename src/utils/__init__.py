@@ -3,6 +3,7 @@ from src.utils.data_transformation import (
     model_fitness_function_string,
     omnipred_fitness_function_string,
     blt_model_fitness_function_string,
+    dual_model_fitness_function_string,
 )
 from src.utils.instantiators import instantiate_callbacks, instantiate_loggers
 from src.utils.logging_utils import log_hyperparameters

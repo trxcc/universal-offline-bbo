@@ -11,6 +11,7 @@ def omnipred_fitness_function_string(
     x: np.ndarray,
     m: str,
     model: OmnipredModule,
+    task_name: str,
 ) -> np.ndarray:
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
     assert len(x.shape) == 1 or len(x.shape) == 2
@@ -22,12 +23,12 @@ def omnipred_fitness_function_string(
 
     def sol2str(single_solution):
         res_str = ", ".join(
-            f"x{i}: {val.item()}" for i, val in enumerate(single_solution)
+            f"x{i}: {val.item():.4f}" if not task_name.startswith('TFBind') else f"x{i}: '{int(val.item())}'" for i, val in enumerate(single_solution)
         )
         return res_str
 
     x_str = [sol2str(x0) for x0 in x]
-    input_str = [f"{x0}. {m0}" for x0, m0 in zip(x_str, ms)]
+    input_str = [f"{m0}. {x0}" for x0, m0 in zip(x_str, ms)]
     input_tokens = model.input_tokenizer(
         input_str, padding="max_length", truncation=True, return_tensors="pt"
     )
@@ -42,7 +43,8 @@ def omnipred_fitness_function_string(
 
 @torch.no_grad()
 def model_fitness_function_string(
-    x: np.ndarray, m: str, model: LightningModule, datamodule: LightningDataModule
+    x: np.ndarray, m: str, model: LightningModule, datamodule: LightningDataModule,
+    task_name: str,
 ) -> np.ndarray:
     model = model.to("cuda" if torch.cuda.is_available() else "cpu")
     assert len(x.shape) == 1 or len(x.shape) == 2
@@ -54,13 +56,13 @@ def model_fitness_function_string(
 
     def sol2str(single_solution):
         res_str = ", ".join(
-            f"x{i}: {val.item()}" for i, val in enumerate(single_solution)
+            f"x{i}: {val.item():.4f}" if not task_name.startswith('TFBind') else f"x{i}: '{int(val.item())}'" for i, val in enumerate(single_solution)
         )
         return res_str
 
     x_str = [sol2str(x0) for x0 in x]
     if datamodule.hparams.cat_metadata:
-        x_str = [f"{x0}. {m0}" for x0, m0 in zip(x_str, ms)]
+        x_str = [f"{m0}. {x0}" for x0, m0 in zip(x_str, ms)]
     x_tokens = datamodule.hparams.tokenizer(
         x_str,
         padding="max_length",
@@ -84,6 +86,53 @@ def model_fitness_function_string(
     assert len(y_np) == batch_size
 
     return y_np
+
+
+@torch.no_grad()
+def dual_model_fitness_function_string(
+    x: np.ndarray, m: str, model: LightningModule, datamodule: LightningDataModule,
+    task_name: str,
+) -> np.ndarray:
+    model = model.to("cuda" if torch.cuda.is_available() else "cpu")
+    assert len(x.shape) == 1 or len(x.shape) == 2
+    if len(x.shape) == 1:
+        x = x.reshape(1, -1)
+
+    batch_size, n_var = x.shape
+    ms = tuple([m for _ in range(batch_size)])
+
+    def sol2str(single_solution):
+        res_str = ", ".join(
+            f"x{i}: {val.item():.4f}" if not task_name.startswith('TFBind') else f"x{i}: '{int(val.item())}'" for i, val in enumerate(single_solution)
+        )
+        return res_str
+
+    x_str = [sol2str(x0) for x0 in x]
+    if datamodule.hparams.cat_metadata:
+        x_str = [f"{m0}. {x0}" for x0, m0 in zip(x_str, ms)]
+    x_tokens = datamodule.hparams.tokenizer(
+        x_str,
+        padding="max_length",
+        max_length=datamodule.hparams.tokenizer_max_length,
+        truncation=True,
+        return_tensors="pt",
+    )
+    for k, v in x_tokens.items():
+        x_tokens[k] = v.squeeze()
+
+    m_tokens = datamodule.hparams.tokenizer(
+        ms,
+        padding="max_length",
+        max_length=datamodule.hparams.tokenizer_max_length,
+        truncation=True,
+        return_tensors="pt",
+    )
+    for k, v in m_tokens.items():
+        m_tokens[k] = v.squeeze()
+    y_np, _ = model(x_tokens, m_tokens)
+    assert len(y_np) == batch_size
+
+    return y_np.cpu().numpy()
 
 def blt_tokenize_and_pad(tokenizer, text: str, tokenizer_max_length: int) -> torch.Tensor:
     tokens = tokenizer.encode(text, add_bos=True, add_eos=True)

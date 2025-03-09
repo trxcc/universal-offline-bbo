@@ -13,7 +13,9 @@ class TextValueDataset(Dataset):
         values: List[float],
         tokenizer: Any,
         tokenizer_max_length: int = 128,
+        meta_tok_max_len: int = 64,
         concat_metadata: bool = True,
+        cat_front: bool = True,
         metadatas: Optional[List[str]] = None,
         task_names: Optional[List[str]] = None,
     ) -> None:
@@ -25,16 +27,44 @@ class TextValueDataset(Dataset):
         self.tokenizer_max_length = tokenizer_max_length
         self.metadatas = metadatas
         self.task_names = task_names
+        self.meta_max_len = meta_tok_max_len
 
         self.concat_metadata = concat_metadata
         if concat_metadata:
-            self.texts = [f"{x}. {m}" for x, m in zip(self.texts, self.metadatas)]
+            if cat_front:
+                self.texts = [f"{m}. {x}" for x, m in zip(self.texts, self.metadatas)]
+            else:
+                self.texts = [f"{x}. {m}" for x, m in zip(self.texts, self.metadatas)]
 
     def __len__(self):
         return len(self.texts)
+    
+    def transform_text(self, text):
+    # 找到第一个 x1 的位置作为分隔点
+        split_point = text.find('x1:')
+    
+    # 分割metadata和数据部分
+        metadata = text[:split_point].strip()
+        data = text[split_point:].strip()
+    
+    # 处理数据部分
+        items = data.split(',')  # 假设用逗号分隔
+        transformed_items = []
+    
+        for item in items:
+        # 分离特征名和数值
+            feature, value = item.strip().split(':')
+        # 转换格式
+            transformed = f"{feature} is{value}"
+            transformed_items.append(transformed)
+    
+    # 组合结果
+        result = metadata + '\n' + '\n'.join(transformed_items)
+        return result
 
     def __getitem__(self, idx: int) -> Tuple[str, torch.Tensor, str, str]:
         text = self.texts[idx]
+        # text = self.transform_text(text)
         text_tokens = self.tokenizer(
             text,
             padding="max_length",
@@ -51,7 +81,7 @@ class TextValueDataset(Dataset):
         metadata_tokens = self.tokenizer(
             metadata,
             padding="max_length",
-            max_length=self.tokenizer_max_length,
+            max_length=self.meta_max_len,
             truncation=True,
             return_tensors="pt",
         )

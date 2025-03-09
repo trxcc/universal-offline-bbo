@@ -10,7 +10,7 @@ DESIGN_BENCH_TASKS = [
     "Superconductor-RandomForest-v0",
     "TFBind8-Exact-v0",
     "TFBind10-Exact-v0",
-    # # Below are tasks that are not usually used in Design-Bench
+    # Below are tasks that are not usually used in Design-Bench
     "HopperController-Exact-v0",
 ]
 
@@ -44,6 +44,8 @@ CO_TASKS = [
     "TSP_50",
     "TSP_100",
 ]
+
+
 
 
 def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
@@ -118,7 +120,7 @@ def get_tasks(task_names: List[str], root_dir: Path) -> List[OfflineBBOTask]:
                     )
                 )
             else:
-                from src.tasks.mcts_transfer_task.func_task import BBOBTask
+                from src.tasks.mcts_transfer_task.colm_func_task import BBOBTask
 
                 task_name, func_seed = task_entry.split("_")
                 tasks.append(
@@ -183,6 +185,26 @@ def get_tasks_from_suites(
                         "Rastrigin",
                         "RosenbrockRotated",
                         "SharpRidge",
+                        "Sphere",
+                        "BuecheRastrigin",
+                        "LinearSlope",
+                        "AttractiveSector",
+                        "StepEllipsoidal",
+                        "Ellipsoidal",
+                        "Discus",
+                        "BentCigar",
+                        "DifferentPowers",
+                        "Weierstrass",
+                        "SchaffersF7",
+                        "SchaffersF7IllConditioned",
+                        "GriewankRosenbrock",
+                        "Schwefel",
+                        "Katsuura",
+                        "Gallagher101Me",
+                        "Gallagher21Me",
+                        "NegativeSphere",
+                        "NegativeMinDifference",
+                        "FonsecaFleming",
                     )
                 ):
                     continue

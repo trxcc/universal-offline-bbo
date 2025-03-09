@@ -5,18 +5,18 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from lightning import LightningModule
+import torch.nn.functional as F
+from lightning import LightningDataModule, LightningModule
 from torchmetrics import MaxMetric, MeanMetric, SpearmanCorrCoef
 from transformers.tokenization_utils_base import BatchEncoding
 
 from src.utils import RankedLogger
 from src.utils.io_utils import load_task_names
-from src.models.components.mlp import SimpleMLP
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-class EmbedRegressorModule(LightningModule):
+class EmbedRegressorLatentModule(LightningModule):
 
     def __init__(
         self,
@@ -28,17 +28,18 @@ class EmbedRegressorModule(LightningModule):
         compile: bool,
         data_dir: Path,
         task_names: List[str],
+        non_shuffled_datamodule: LightningDataModule,
         embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         metadata_embedder: Optional[nn.Module] = None,
         metadata_embedder_output_dim: Optional[int] = None,
-        metadata_projector: Optional[nn.Module] = None,
-        metadata_projector_output_dim: Optional[int] = None,
         metadata_embedder_optimizer: Optional[torch.optim.Optimizer] = None,
         cat_metadata: bool = False,
         from_pretrained: bool = True,
         finetune_embedder: bool = True,
-        if_mean_pooling: bool = True,
-        adapt_mlp_optimizer: Optional[torch.optim.Optimizer] = None,
+        finetune_interval: int = 10,
+        num_finetune_epochs: int = 3,
+        temperature: float = 0.07,
+        if_use_detach_normalization: bool = False
     ) -> None:
         super().__init__()
 
@@ -62,39 +63,16 @@ class EmbedRegressorModule(LightningModule):
         self.regressor = regressor
         self.cat_metadata = cat_metadata
         self.finetune_embedder = finetune_embedder
-        self.if_mean_pooling = if_mean_pooling
-        self.has_metadata = (
-            (metadata_embedder is not None)
-            and (metadata_embedder_output_dim is not None)
-            and (metadata_projector_output_dim is not None)
+        self.has_metadata = (metadata_embedder is not None) and (
+            metadata_embedder_output_dim is not None
         )
-        self.optimize_metadata_embedder = (
-            self.has_metadata and metadata_embedder_optimizer is not None
-        )
+        self.optimize_metadata_embedder = False
 
         if self.has_metadata:
             self.metadata_embedder = metadata_embedder
             self.metadata_embedder_output_dim = metadata_embedder_output_dim
-            if metadata_projector is None:
-                metadata_projector = nn.Linear(
-                    in_features=metadata_embedder_output_dim,
-                    out_features=metadata_projector_output_dim,
-                )
-            self.metadata_projector = metadata_projector
-            self.metadata_projector_output_dim = metadata_projector_output_dim
 
-        if not self.has_metadata:
-            self.batch_norm = nn.BatchNorm1d(embedder_output_dim)
-        else:
-            self.batch_norm = nn.BatchNorm1d(
-                embedder_output_dim + metadata_projector_output_dim
-            )
-
-        if not self.if_mean_pooling:
-            layers = []
-            layers.append(nn.Linear(embedder_output_dim*512, 512))
-            layers.append(nn.ReLU())
-            self.adapt_mlp = nn.Sequential(*layers)
+        self.batch_norm = nn.BatchNorm1d(embedder_output_dim)
 
         self.criterion = nn.MSELoss()
 
@@ -105,6 +83,171 @@ class EmbedRegressorModule(LightningModule):
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
 
+        self.train_mse = MeanMetric()
+        self.train_lip_loss = MeanMetric()
+        self.train_con_loss = MeanMetric()
+
+        self.finetune_interval = finetune_interval
+        self.num_finetune_epochs = num_finetune_epochs
+        self.temperature = temperature
+        self.in_finetune_mode = False
+        self.current_finetune_epoch = 0
+        self.non_shuffled_datamodule = non_shuffled_datamodule
+
+        self.projection_head = nn.Sequential(
+            nn.Linear(embedder_output_dim, embedder_output_dim),
+            nn.ReLU(),
+            nn.Linear(embedder_output_dim, 128),
+        )
+
+        self.metadata_projection_head = nn.Sequential(
+            nn.Linear(metadata_embedder_output_dim, metadata_embedder_output_dim),
+            nn.ReLU(),
+            nn.Linear(metadata_embedder_output_dim, 128),
+        )
+
+        if not from_pretrained:
+            self.projection_head.apply(init_weights)
+            self.metadata_projection_head.apply(init_weights)
+
+    def contrastive_loss(
+        self, embeddings1: torch.Tensor, embeddings2: torch.Tensor
+    ) -> torch.Tensor:
+        embeddings1 = F.normalize(embeddings1, dim=1)
+        embeddings2 = F.normalize(embeddings2, dim=1)
+
+        metadata_sim = torch.matmul(embeddings2, embeddings2.T)
+        metadata_sim_max, _ = metadata_sim.max(dim=1, keepdim=True)
+        metadata_sim_min, _ = metadata_sim.min(dim=1, keepdim=True)
+        metadata_sim = (metadata_sim - metadata_sim_min) / (
+            metadata_sim_max - metadata_sim_min + 1e-10
+        )
+
+        similarity_matrix = torch.matmul(embeddings1, embeddings1.T)
+        similarity_matrix = similarity_matrix / self.temperature
+
+        log_prob = F.log_softmax(similarity_matrix, dim=1)
+
+        mask = ~torch.eye(
+            embeddings1.shape[0], dtype=torch.bool, device=embeddings1.device
+        )
+        loss = -(metadata_sim[mask] * log_prob[mask]).mean()
+
+        return loss
+
+    def lipschitz_loss(self, z, y, recon_weight=None):
+        z = z.to(self.device)
+        y = y.to(self.device)
+        
+        # if all ys are the same, return the mean of all zs
+        if torch.all(y == y[0]):
+            dif_z = torch.sqrt(
+                torch.sum((z.unsqueeze(1) - z.unsqueeze(0)) ** 2, dim=2) + 1e-10
+            )
+            return dif_z.mean()
+        
+        dif_y = (y.unsqueeze(1) - y.unsqueeze(0)).squeeze(-1)
+        dif_z = torch.sqrt(
+            torch.sum((z.unsqueeze(1) - z.unsqueeze(0)) ** 2, dim=2) + 1e-10
+        )
+        
+        lips = abs(dif_y / (dif_z + 1e-10))
+        ratio = lips - torch.median(lips)
+        ratio = ratio[ratio > 0]
+        
+        if len(ratio) == 0:
+            return torch.tensor(0.0, device=self.device)
+            
+        loss = ratio.mean()
+        return loss
+
+    def finetune_embedder_step(
+        self,
+        batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]],
+        non_shuffled_batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]],
+    ) -> torch.Tensor:
+
+        x = batch["text"]
+        m = batch["metadata"]
+
+        encoded_input = x.to(self.device)
+        m_emb = self.hidden_emb_metadata(m)
+        x_embeddings = self.embedder(**encoded_input, emb_meta=m_emb)
+        x_embeddings = self._mean_pooling(x_embeddings, encoded_input["attention_mask"])
+        x_projected = self.projection_head(x_embeddings)
+
+        with torch.no_grad():
+            m_embeddings = self._emb_metadata(m)
+        m_projected = self.metadata_projection_head(m_embeddings)
+
+        loss = self.contrastive_loss(x_projected, m_projected)
+
+        x_n = non_shuffled_batch["text"]
+        y_n = non_shuffled_batch["value"]
+        task_name_n = non_shuffled_batch["task_names"]
+
+        encoded_input_n = x_n.to(self.device)
+        x_embeddings_n = self.embedder(**encoded_input, emb_meta=m_emb)
+        x_embeddings_n = self._mean_pooling(
+            x_embeddings_n, encoded_input_n["attention_mask"]
+        )
+
+        # Combine
+        task_data = {}
+        for i in range(len(task_name_n)):
+            task = task_name_n[i]
+            if task not in task_data:
+                task_data[task] = {"text": [], "value": []}
+
+            task_data[task]["text"].append(x_embeddings_n[i])
+            if y_n.dim() > 1:
+                task_data[task]["value"].append(y_n[i : i + 1])
+            else:
+                task_data[task]["value"].append(y_n[i])
+
+        loss_lip = 0
+        for task in task_data:
+            if len(task_data[task]["text"]) > 0:
+                task_data[task]["text"] = torch.stack(task_data[task]["text"], dim=0)
+
+            if len(task_data[task]["value"]) > 0:
+                try:
+                    task_data[task]["value"] = torch.cat(
+                        task_data[task]["value"], dim=0
+                    )
+                except:
+                    task_data[task]["value"] = torch.tensor(task_data[task]["value"])
+
+            loss_lip += self.lipschitz_loss(
+                z=task_data[task]["text"], y=task_data[task]["value"]
+            ) * (len(task_data[task]["value"]) / len(y_n))
+
+        self.train_lip_loss(loss_lip)
+        self.log(
+            "train/lip_loss",
+            self.train_lip_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            metric_attribute="train_lip_loss",
+        )
+
+        self.train_con_loss(loss)
+        self.log(
+            "train/con_loss",
+            self.train_con_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            metric_attribute="train_con_loss",
+        )
+
+        if self.hparams.if_use_detach_normalization:
+            assert 0
+            return loss, loss_lip
+        else:
+            return loss * 0.1
+
     def _emb_metadata(self, m: Tuple[BatchEncoding]) -> torch.Tensor:
         context = (
             torch.no_grad() if not self.optimize_metadata_embedder else nullcontext()
@@ -114,103 +257,30 @@ class EmbedRegressorModule(LightningModule):
             emb_m = self.metadata_embedder(**encoded_input)
             emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
         return emb_m
+    
+    def hidden_emb_metadata(self, m: Tuple[BatchEncoding]) -> torch.Tensor:
+        context = (
+            torch.no_grad()
+        )
+        with context:
+            encoded_input = m.to(self.device)
+            emb_m = self.metadata_embedder(**encoded_input)
+            # emb_m = self._mean_pooling(emb_m, encoded_input["attention_mask"])
+        return emb_m[0]
 
     def forward(self, x: Tuple[BatchEncoding], m: Tuple[BatchEncoding]) -> torch.Tensor:
         context = torch.no_grad() if not self.finetune_embedder else nullcontext()
+        m_emb = self.hidden_emb_metadata(m).to(self.device)
+        # print(type(m_emb))
+        # assert 0
         with context:
             encoded_input = x.to(self.device)
-            x_emb = self.embedder(**encoded_input)
-            if self.if_mean_pooling:
-                x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
-            else:
-                B, L, D = x_emb[0].shape
-                x_flat = x_emb[0].reshape(B, L*D)
-                x_emb = self.adapt_mlp(x_flat)
+            x_emb = self.embedder(**encoded_input, emb_meta=m_emb)
+            x_emb = self._mean_pooling(x_emb, encoded_input["attention_mask"])
 
-        if self.has_metadata:
-            m_emb = self._emb_metadata(m)
-            m_emb = self.metadata_projector(m_emb)
-            x_emb = torch.cat((x_emb, m_emb), dim=1)
-
-        # mean, var, min_vals, max_vals = self.batch_statistics(x_emb)
-    
-        # print("均值:", mean)
-        # print("方差:", var)
-        # print("最小值:", min_vals)
-        # print("最大值:", max_vals)
-        # print("使用Z-score方法检测异常值:")
-        # stats_zscore = self.detect_outliers(x_emb, method='zscore', threshold=3.0)
-        # for dim, dim_stats in stats_zscore.items():
-        #     if dim_stats['outliers_count'] > 0:
-        #         print(f"\n{dim}:")
-        #         print(f"异常值数量: {dim_stats['outliers_count']}")
-        #         print(f"异常值: {dim_stats['outlier_values']}")
-        #         print(f"异常值索引: {dim_stats['outlier_indices']}")
-        #         print(f"均值: {dim_stats['mean']}")
-        #         print(f"标准差: {dim_stats['std']}")
-        # assert 0
         x_emb = self.batch_norm(x_emb)
         preds = self.regressor(x_emb)
         return preds
-    
-    def batch_statistics(self, vectors: torch.Tensor):
-        mean = torch.mean(vectors, dim=0)
-        var = torch.var(vectors, dim=0)
-        min_vals, _ = torch.min(vectors, dim=0)
-        max_vals, _ = torch.max(vectors, dim=0)
-    
-        return mean, var, min_vals, max_vals
-    
-    def detect_outliers(self, vectors: torch.Tensor, method='zscore', threshold=3.0):
-        batch_size, dim = vectors.shape
-        stats = {}
-    
-        for d in range(dim):
-            dim_data = vectors[:, d]  # 提取第d维的所有数据
-        
-            if method == 'zscore':
-            # 使用z-score方法
-                mean = torch.mean(dim_data)
-                std = torch.std(dim_data)
-                z_scores = torch.abs((dim_data - mean) / std)
-                outliers_mask = z_scores > threshold
-                outlier_values = dim_data[outliers_mask]
-            
-                stats[f'dim_{d}'] = {
-                'mean': mean.item(),
-                'std': std.item(),
-                'outliers_count': outliers_mask.sum().item(),
-                'outlier_values': outlier_values.tolist(),
-                'outlier_indices': outliers_mask.nonzero().flatten().tolist(),
-                'min': torch.min(dim_data).item(),
-                'max': torch.max(dim_data).item()
-            }
-            
-            elif method == 'iqr':
-            # 使用IQR方法
-                q1 = torch.quantile(dim_data, 0.25)
-                q3 = torch.quantile(dim_data, 0.75)
-                iqr = q3 - q1
-                lower_bound = q1 - 1.5 * iqr
-                upper_bound = q3 + 1.5 * iqr
-            
-                outliers_mask = (dim_data < lower_bound) | (dim_data > upper_bound)
-                outlier_values = dim_data[outliers_mask]
-            
-                stats[f'dim_{d}'] = {
-                'q1': q1.item(),
-                'q3': q3.item(),
-                'iqr': iqr.item(),
-                'lower_bound': lower_bound.item(),
-                'upper_bound': upper_bound.item(),
-                'outliers_count': outliers_mask.sum().item(),
-                'outlier_values': outlier_values.tolist(),
-                'outlier_indices': outliers_mask.nonzero().flatten().tolist(),
-                'min': torch.min(dim_data).item(),
-                'max': torch.max(dim_data).item()
-            }
-    
-        return stats
 
     def _mean_pooling(
         self, model_output: Tuple[torch.Tensor], attention_mask: torch.Tensor
@@ -254,24 +324,52 @@ class EmbedRegressorModule(LightningModule):
         batch: Dict[str, Union[Tuple[BatchEncoding], torch.Tensor, str]],
         batch_idx: int,
     ) -> torch.Tensor:
+        try:
+            non_shuffled_batch = next(self.non_shuffled_train_iter)
+        except:
+            self.non_shuffled_train_iter = iter(
+                self.non_shuffled_datamodule.train_dataloader()
+            )
+            non_shuffled_batch = next(self.non_shuffled_train_iter)
+
+        latent_space_loss = self.finetune_embedder_step(batch, non_shuffled_batch)
+
         if self.optimize_metadata_embedder:
             opt_regress, opt_embed, opt_m_embed = self.optimizers()
             opt_m_embed.zero_grad()
         elif self.finetune_embedder:
             opt_regress, opt_embed = self.optimizers()
             opt_embed.zero_grad()
-        elif not self.if_mean_pooling:
-            opt_regress, opt_adapter = self.optimizers()
         else:
             opt_regress = self.optimizers()
         opt_regress.zero_grad()
 
         loss, preds, targets, task_names = self.model_step(batch)
+
+        self.train_mse(loss)
+        self.log(
+            "train/mse",
+            self.train_mse,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            metric_attribute="train_mse",
+        )
+        if self.hparams.if_use_detach_normalization:
+            loss1 = loss 
+            loss2, loss3 = latent_space_loss
+            if torch.isnan(loss1) or torch.isnan(loss2) or torch.isnan(loss3):
+                print(loss1, loss2, loss3)
+                print(preds, targets)
+                assert 0
+            # loss = loss1 + loss2 / (loss2 / (loss1.detach() + 1e-10) + 1e-10).detach() + loss3 / (loss3 / (loss1.detach() + 1e-10) + 1e-10).detach()
+            loss = loss1 / (loss1.detach() + 1e-10) + loss2 / (loss2.detach() + 1e-10) + loss3 / (loss3.detach() + 1e-10)
+        else:
+            loss = loss + latent_space_loss
+
         loss.backward()
 
         torch.nn.utils.clip_grad_norm_(self.regressor.parameters(), max_norm=0.5)
-        if not self.if_mean_pooling:
-            torch.nn.utils.clip_grad_norm_(self.adapt_mlp.parameters(), max_norm=0.5)
         if self.finetune_embedder:
             torch.nn.utils.clip_grad_norm_(self.embedder.parameters(), max_norm=0.5)
         if self.optimize_metadata_embedder:
@@ -284,8 +382,6 @@ class EmbedRegressorModule(LightningModule):
             opt_embed.step()
         if self.optimize_metadata_embedder:
             opt_m_embed.step()
-        if not self.if_mean_pooling:
-            opt_adapter.step()
 
         self.train_loss(loss)
         self.log(
@@ -331,6 +427,11 @@ class EmbedRegressorModule(LightningModule):
 
     def setup(self, stage: str) -> None:
         if stage == "fit":
+            self.non_shuffled_datamodule.setup("fit")
+            loader = self.non_shuffled_datamodule.train_dataloader()
+            self.non_shuffled_train_iter = iter(loader)
+            log.info("Finish iterate non_shuffled dataloader")
+
             for task_name in self.task_names:
                 if task_name not in self.train_rank_corr:
                     self.train_rank_corr[task_name] = SpearmanCorrCoef()
@@ -341,19 +442,16 @@ class EmbedRegressorModule(LightningModule):
         if self.hparams.compile and stage == "fit":
             self.regressor = torch.compile(self.regressor)
             self.embedder = torch.compile(self.embedder)
-            if not self.if_mean_pooling:
-                self.adapt_mlp = torch.compile(self.adapt_mlp)
+            self.projection_head = torch.compile(self.projection_head)
+            self.metadata_projection_head = torch.compile(self.metadata_projection_head)
 
             if self.has_metadata:
                 self.metadata_embedder = torch.compile(self.metadata_embedder)
-                self.metadata_projector = torch.compile(self.metadata_projector)
+                # self.metadata_projector = torch.compile(self.metadata_projector)
 
     def configure_optimizers(self) -> Dict[str, Any]:
         if self.has_metadata:
-            regressor_params = chain(
-                self.trainer.model.parameters(),
-                self.metadata_projector.parameters(),
-            )
+            regressor_params = self.trainer.model.parameters()
             if self.optimize_metadata_embedder:
                 metadata_embedder_optimizer = self.hparams.metadata_embedder_optimizer(
                     params=self.metadata_embedder.parameters()
@@ -378,15 +476,13 @@ class EmbedRegressorModule(LightningModule):
         else:
             optimizers = [{"optimizer": optimizer}]
 
-        if not self.if_mean_pooling:
-            adapter_optimizer = self.hparams.adapt_mlp_optimizer(
-                params=self.adapt_mlp.parameters()
-            )
-            optimizers.append({"optimizer": adapter_optimizer})
-
         if self.hparams.finetune_embedder:
             embedder_optimizer = self.hparams.embedder_optimizer(
-                params=self.embedder.parameters()
+                params=chain(
+                    self.embedder.parameters(),
+                    self.projection_head.parameters(),
+                    self.metadata_projection_head.parameters(),
+                )
             )
             optimizers.append({"optimizer": embedder_optimizer})
 

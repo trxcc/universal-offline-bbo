@@ -23,6 +23,7 @@ class OmnipredModule(LightningModule):
         task_names: str,
         numeric_interval: int = 50,
         scheduler=None,
+        # finetune: bool = False,
     ) -> None:
         super().__init__()
 
@@ -43,6 +44,7 @@ class OmnipredModule(LightningModule):
 
         self.last_numeric_epoch = -1
         self.numeric_interval = 1
+        # self.finetune = finetune
 
     def forward(
         self,
@@ -52,13 +54,20 @@ class OmnipredModule(LightningModule):
         decoder_attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        # if self.finetune:
+        #     return self.model(
+        #         input_ids=input_ids,
+        #         attention_mask=attention_mask,
+        #         # labels=labels,
+        #     )
+        # else:
         return self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            decoder_input_ids=decoder_input_ids,
-            decoder_attention_mask=decoder_attention_mask,
-            labels=labels,
-        )
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                decoder_input_ids=decoder_input_ids,
+                decoder_attention_mask=decoder_attention_mask,
+                labels=labels,
+            )
 
     def on_train_start(self) -> None:
         self.val_loss.reset()
